@@ -1,0 +1,13 @@
+{
+  "name": "scglam-backend",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "cors": "2.8.5",
+    "express": "^4.22.1",
+    "pg": "8.13.1"
+  }
+}

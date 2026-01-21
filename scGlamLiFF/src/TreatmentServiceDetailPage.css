@@ -373,6 +373,91 @@
   gap: 14px;
 }
 
+.course-modal__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.course-modal__details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.course-modal__payment {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 1px solid var(--border);
+  padding-left: 14px;
+}
+
+.course-modal__payment-title {
+  margin: 0;
+  font-size: 16px;
+  color: var(--accent-dark);
+}
+
+.course-modal__payment-options {
+  display: grid;
+  gap: 8px;
+}
+
+.course-modal__payment-option {
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  font-family: inherit;
+  color: var(--accent-dark);
+  text-align: left;
+}
+
+.course-modal__payment-option.is-selected {
+  border-color: var(--accent-dark);
+  background: var(--surface);
+}
+
+.course-modal__summary {
+  border-radius: 16px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.course-modal__summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--accent-olive);
+  font-size: 13px;
+}
+
+.course-modal__summary-row.total {
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.course-modal__proceed {
+  padding: 8px 14px;
+  border-radius: 14px;
+  border: 2px solid var(--accent-dark);
+  background: var(--surface2);
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+
+.course-modal__note-inline {
+  margin: 0;
+  font-size: 12px;
+  color: var(--accent-olive);
+}
+
 .course-modal__header {
   display: flex;
   justify-content: space-between;
@@ -453,6 +538,23 @@
   background: transparent;
   color: var(--accent-dark);
   border-color: var(--accent-dark);
+}
+
+@media (max-width: 720px) {
+  .course-modal__panel {
+    width: min(480px, 100%);
+  }
+
+  .course-modal__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .course-modal__payment {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
 }
 
 @media (max-width: 980px) {

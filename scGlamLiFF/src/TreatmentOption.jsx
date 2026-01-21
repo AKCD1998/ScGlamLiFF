@@ -1,6 +1,6 @@
-function TreatmentOption({ title, imageSrc, isActive, onClick }) {
+function TreatmentOption({ title, imageSrc, isActive, isDisabled = false, onClick }) {
   const handleClick = () => {
-    if (!isActive) {
+    if (isDisabled) {
       return;
     }
     if (onClick) {
@@ -13,7 +13,7 @@ function TreatmentOption({ title, imageSrc, isActive, onClick }) {
       className={`treatment-option${isActive ? "" : " treatment-option--inactive"}`}
       type="button"
       onClick={handleClick}
-      disabled={!isActive}
+      disabled={isDisabled}
     >
       <img className="treatment-thumb" src={imageSrc} alt={title} />
       <span className="treatment-title">{title}</span>
