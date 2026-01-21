@@ -9,7 +9,9 @@
   "dependencies": {
     "@line/liff": "2.27.3",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-router-dom": "^6.30.3",
+    "react-day-picker": "9.0.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "5.1.2",
