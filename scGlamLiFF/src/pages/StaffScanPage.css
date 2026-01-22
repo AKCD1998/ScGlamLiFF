@@ -1,0 +1,56 @@
+.staff-scan-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 0 24px;
+}
+
+.staff-scan-page h1 {
+  margin: 0;
+  font-size: 24px;
+  color: var(--accent-dark);
+}
+
+.staff-scan-page p {
+  margin: 0;
+  color: var(--accent-olive);
+}
+
+.staff-scan-page__label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-olive);
+}
+
+.staff-scan-page textarea {
+  width: 100%;
+  border-radius: 16px;
+  border: 2px solid var(--accent-dark);
+  padding: 12px;
+  font-family: inherit;
+  color: var(--accent-dark);
+  background: var(--surface);
+  resize: vertical;
+}
+
+.staff-scan-page button {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border-radius: 14px;
+  border: 2px solid var(--accent-dark);
+  background: #1e9a47;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.staff-scan-page button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.staff-scan-page__status {
+  font-size: 14px;
+  color: var(--accent-dark);
+}

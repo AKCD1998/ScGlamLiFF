@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import myTreatmentMock from "../data/myTreatmentMock";
+import { getNextBooking } from "../data/bookingMock";
 import LineProfileCard from "../components/LineProfileCard";
-import CourseProgressCard from "../components/CourseProgressCard";
+import CourseBundleList from "../components/CourseBundleList";
 import NextAppointmentCard from "../components/NextAppointmentCard";
 import ServiceHistoryTable from "../components/ServiceHistoryTable";
 import AppLayout from "../components/AppLayout";
@@ -9,16 +11,21 @@ import { getMockUserId, storeMockUserIdFromQuery } from "../utils/mockAuth";
 import "./MyTreatmentSmoothPage.css";
 
 function MyTreatmentSmoothPage() {
+  const location = useLocation();
   const [courseData, setCourseData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const [noSmoothCourse, setNoSmoothCourse] = useState(false);
   const [mockUserId, setMockUserId] = useState(getMockUserId());
+  const [historyData, setHistoryData] = useState({ purchaseRows: [], usageRows: [] });
+  const [historyError, setHistoryError] = useState(null);
+  const [bundleCourses, setBundleCourses] = useState([]);
+  const [bundleError, setBundleError] = useState(null);
 
   useEffect(() => {
     const queryUserId = storeMockUserIdFromQuery();
     setMockUserId(queryUserId || getMockUserId());
-  }, []);
+  }, [location.search]);
 
   useEffect(() => {
     let isActive = true;
@@ -91,7 +98,135 @@ function MyTreatmentSmoothPage() {
     return () => {
       isActive = false;
     };
-  }, [mockUserId]);
+  }, [mockUserId, location.key]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const fetchHistory = async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+      return response.json();
+    };
+
+    const loadHistory = async () => {
+      setHistoryError(null);
+      const encodedUserId = encodeURIComponent(mockUserId);
+      const proxyUrl = `/api/me/history?line_user_id=${encodedUserId}&treatment_code=smooth`;
+      const fallbackUrl = `http://localhost:3002/api/me/history?line_user_id=${encodedUserId}&treatment_code=smooth`;
+
+      try {
+        let data;
+        try {
+          data = await fetchHistory(proxyUrl);
+        } catch (error) {
+          data = await fetchHistory(fallbackUrl);
+        }
+
+        if (!isActive) {
+          return;
+        }
+
+        setHistoryData({
+          purchaseRows: Array.isArray(data.purchaseRows) ? data.purchaseRows : [],
+          usageRows: Array.isArray(data.usageRows) ? data.usageRows : []
+        });
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        setHistoryError(error);
+        setHistoryData({ purchaseRows: [], usageRows: [] });
+      }
+    };
+
+    if (mockUserId) {
+      loadHistory();
+    }
+
+    return () => {
+      isActive = false;
+    };
+  }, [mockUserId, location.key]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const fetchCourses = async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+      return response.json();
+    };
+
+    const loadCourses = async () => {
+      setBundleError(null);
+      const encodedUserId = encodeURIComponent(mockUserId);
+      const proxyUrl = `/api/my-courses?lineUserId=${encodedUserId}`;
+      const fallbackUrl = `http://localhost:3002/api/my-courses?lineUserId=${encodedUserId}`;
+
+      try {
+        let data;
+        try {
+          data = await fetchCourses(proxyUrl);
+        } catch (error) {
+          data = await fetchCourses(fallbackUrl);
+        }
+
+        if (!isActive) {
+          return;
+        }
+
+        const courses = Array.isArray(data.courses) ? data.courses : [];
+        const smoothCourses = courses.filter(
+          (course) => course.treatmentCode === "smooth"
+        );
+        setBundleCourses(smoothCourses);
+        setNoSmoothCourse(smoothCourses.length === 0);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        setBundleError(error);
+        setBundleCourses([]);
+        setNoSmoothCourse(true);
+      }
+    };
+
+    if (mockUserId) {
+      loadCourses();
+    }
+
+    return () => {
+      isActive = false;
+    };
+  }, [mockUserId, location.key]);
+
+  const appointmentData = useMemo(
+    () =>
+      getNextBooking({
+        lineUserId: mockUserId || "U_TEST_001",
+        treatmentCode: "smooth"
+      }),
+    [mockUserId]
+  );
+
+  const bundleData = useMemo(
+    () =>
+      bundleCourses.map((course) => ({
+        id: course.purchaseId,
+        treatmentTitle: course.treatmentTitle,
+        totalSessions: course.totalSessions,
+        remainingSessions: course.remainingSessions,
+        purchasedAt: course.purchasedAt,
+        expiresAt: course.expiresAt,
+        status: course.status
+      })),
+    [bundleCourses]
+  );
 
   const profileData = {
     ...myTreatmentMock.profile,
@@ -119,11 +254,17 @@ function MyTreatmentSmoothPage() {
             Failed to load treatments. Showing mock data.
           </p>
         ) : null}
+        {historyError ? (
+          <p className="my-treatment-page__status">Failed to load history.</p>
+        ) : null}
+        {bundleError ? (
+          <p className="my-treatment-page__status">Failed to load courses.</p>
+        ) : null}
 
         <section className="my-treatment-summary">
           <LineProfileCard profile={profileData} />
-          {courseData ? (
-            <CourseProgressCard course={courseData} />
+          {bundleData.length ? (
+            <CourseBundleList bundles={bundleData} />
           ) : noSmoothCourse ? (
             <section className="my-treatment-card course-progress-card">
               <div className="course-progress-card__summary">
@@ -133,9 +274,9 @@ function MyTreatmentSmoothPage() {
           ) : null}
         </section>
 
-        <NextAppointmentCard appointment={myTreatmentMock.nextAppointment} />
+        <NextAppointmentCard appointment={appointmentData} />
 
-        <ServiceHistoryTable history={myTreatmentMock.history} />
+        <ServiceHistoryTable history={historyData} />
       </div>
     </AppLayout>
   );

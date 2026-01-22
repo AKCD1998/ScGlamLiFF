@@ -8,6 +8,7 @@ import TreatmentServiceDetailPage from "./TreatmentServiceDetailPage";
 import MyTreatmentSmoothPage from "./pages/MyTreatmentSmoothPage";
 import AppLayout from "./components/AppLayout";
 import BookingFlowPage from "./pages/BookingFlowPage";
+import StaffScanPage from "./pages/StaffScanPage";
 
 function ActionButton({ title, subtitle, onClick }) {
   return (
@@ -75,6 +76,7 @@ function App() {
         element={<TopPicksTreatmentsPage />}
       />
       <Route path="/treatments/:slug" element={<TreatmentServiceDetailPage />} />
+      <Route path="/staff/scan" element={<StaffScanPage />} />
     </Routes>
   );
 }

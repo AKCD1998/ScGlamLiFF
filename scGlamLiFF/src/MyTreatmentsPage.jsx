@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import TreatmentOption from "./TreatmentOption";
 import myTreatmentMock from "./data/myTreatmentMock";
 import { getMockUserId, storeMockUserIdFromQuery } from "./utils/mockAuth";
@@ -8,6 +8,7 @@ import smoothImage from "./assets/smooth.png";
 
 function MyTreatmentsPage({ onSelectSmooth }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
@@ -16,7 +17,7 @@ function MyTreatmentsPage({ onSelectSmooth }) {
   useEffect(() => {
     const queryUserId = storeMockUserIdFromQuery();
     setMockUserId(queryUserId || getMockUserId());
-  }, []);
+  }, [location.search]);
 
   useEffect(() => {
     let isActive = true;
@@ -75,7 +76,7 @@ function MyTreatmentsPage({ onSelectSmooth }) {
     return () => {
       isActive = false;
     };
-  }, [mockUserId]);
+  }, [mockUserId, location.key]);
 
   const handleOwnedTreatment = (code) => {
     if (code === "smooth") {

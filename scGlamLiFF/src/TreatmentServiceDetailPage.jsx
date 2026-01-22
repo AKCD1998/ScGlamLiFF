@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import treatmentsDetailMock from "./data/treatmentsDetailMock";
 import CoursePurchaseModal from "./components/CoursePurchaseModal";
 import smoothImage from "./assets/smooth.png";
 import AppLayout from "./components/AppLayout";
+import { getMockUserId, storeMockUserIdFromQuery } from "./utils/mockAuth";
 import "./TreatmentServiceDetailPage.css";
 
 const tabs = [
@@ -21,12 +22,21 @@ function renderStars(score) {
 
 function TreatmentServiceDetailPage() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const detail = useMemo(
     () => treatmentsDetailMock.find((item) => item.slug === slug),
     [slug]
   );
   const [activeTab, setActiveTab] = useState("packages");
   const [selectedPackage, setSelectedPackage] = useState(null);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [purchaseError, setPurchaseError] = useState(null);
+  const [mockUserId, setMockUserId] = useState(getMockUserId());
+
+  useEffect(() => {
+    const queryUserId = storeMockUserIdFromQuery();
+    setMockUserId(queryUserId || getMockUserId());
+  }, []);
 
   if (!detail) {
     return (
@@ -51,9 +61,68 @@ function TreatmentServiceDetailPage() {
     }
   };
 
-  const handleConfirmPurchase = () => {
-    setSelectedPackage(null);
-    window.alert("บันทึกไว้ (frontend)");
+  const resolveSessionsBought = (pkg) => {
+    if (!pkg) {
+      return 1;
+    }
+    if (typeof pkg.sessions === "number") {
+      return pkg.sessions;
+    }
+    const idMap = {
+      "smooth-1x": 1,
+      "smooth-3x": 3,
+      "smooth-10x": 10
+    };
+    if (idMap[pkg.id]) {
+      return idMap[pkg.id];
+    }
+    const match = pkg.title.match(/\d+/);
+    return match ? Number(match[0]) : 1;
+  };
+
+  const handleConfirmPurchase = async () => {
+    if (!selectedPackage || isPurchasing) {
+      return;
+    }
+
+    setIsPurchasing(true);
+    setPurchaseError(null);
+
+    const sessionsBought = resolveSessionsBought(selectedPackage);
+    const payload = {
+      line_user_id: mockUserId || "U_TEST_001",
+      treatment_code: slug,
+      sessions_bought: sessionsBought,
+      price_thb: selectedPackage?.price ?? null
+    };
+
+    try {
+      const requestPurchase = async (url) => {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          const errorPayload = await response.json().catch(() => ({}));
+          throw new Error(errorPayload.error || "Failed to create purchase");
+        }
+        return response.json().catch(() => ({}));
+      };
+
+      try {
+        await requestPurchase("/api/purchases/mock-buy");
+      } catch (error) {
+        await requestPurchase("http://localhost:3002/api/purchases/mock-buy");
+      }
+
+      setSelectedPackage(null);
+      navigate(`/my-treatments?mock_user_id=${encodeURIComponent(payload.line_user_id)}`);
+    } catch (error) {
+      setPurchaseError(error.message || "Failed to create purchase");
+    } finally {
+      setIsPurchasing(false);
+    }
   };
 
   return (
@@ -92,6 +161,9 @@ function TreatmentServiceDetailPage() {
 
             <section className="service-packages" id="packages">
               <h2>Course options</h2>
+              {purchaseError ? (
+                <p className="service-package-card__error">{purchaseError}</p>
+              ) : null}
               <div className="service-package-list">
                 {detail.packages.map((option) => (
                   <article key={option.id} className="service-package-card">
@@ -227,6 +299,7 @@ function TreatmentServiceDetailPage() {
           selectedPackage={selectedPackage}
           onClose={() => setSelectedPackage(null)}
           onConfirm={handleConfirmPurchase}
+          isProcessing={isPurchasing}
         />
       </div>
     </AppLayout>

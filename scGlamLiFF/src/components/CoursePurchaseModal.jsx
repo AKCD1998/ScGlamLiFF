@@ -12,7 +12,8 @@ function CoursePurchaseModal({
   serviceName,
   selectedPackage,
   onClose,
-  onConfirm
+  onConfirm,
+  isProcessing = false
 }) {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("promptpay");
   const [showMockNote, setShowMockNote] = useState(false);
@@ -34,6 +35,9 @@ function CoursePurchaseModal({
 
   const handleConfirm = () => {
     // TODO: After real payment confirmation, upsert line_users and user_treatments.
+    if (isProcessing) {
+      return;
+    }
     onConfirm();
   };
 
@@ -113,8 +117,8 @@ function CoursePurchaseModal({
           <button type="button" className="secondary" onClick={onClose}>
             ยกเลิก
           </button>
-          <button type="button" onClick={handleConfirm}>
-            ยืนยัน
+          <button type="button" onClick={handleConfirm} disabled={isProcessing}>
+            {isProcessing ? "กำลังบันทึก..." : "ยืนยัน"}
           </button>
         </div>
       </div>
