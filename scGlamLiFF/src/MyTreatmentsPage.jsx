@@ -1,93 +1,140 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TreatmentOption from "./TreatmentOption";
+import myTreatmentMock from "./data/myTreatmentMock";
+import { getMockUserId, storeMockUserIdFromQuery } from "./utils/mockAuth";
 import "./MyTreatmentsPage.css";
 import smoothImage from "./assets/smooth.png";
-import AppLayout from "./components/AppLayout";
 
-function MyTreatmentsPage() {
+function MyTreatmentsPage({ onSelectSmooth }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [fetchError, setFetchError] = useState(null);
+  const [mockUserId, setMockUserId] = useState(getMockUserId());
 
   useEffect(() => {
-    let isMounted = true;
+    const queryUserId = storeMockUserIdFromQuery();
+    setMockUserId(queryUserId || getMockUserId());
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const fetchTreatments = async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+      return response.json();
+    };
 
     const loadTreatments = async () => {
       setIsLoading(true);
-      setError("");
+      setFetchError(null);
+
+      const encodedUserId = encodeURIComponent(mockUserId);
+      const proxyUrl = `/api/me/treatments?line_user_id=${encodedUserId}`;
+      const fallbackUrl = `http://localhost:3002/api/me/treatments?line_user_id=${encodedUserId}`;
 
       try {
-        const response = await fetch(
-          "/api/me/treatments?line_user_id=U_TEST_001"
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to load treatments");
+        let data;
+        try {
+          data = await fetchTreatments(proxyUrl);
+        } catch (error) {
+          data = await fetchTreatments(fallbackUrl);
         }
 
-        const data = await response.json();
-        if (isMounted) {
-          setItems(Array.isArray(data.items) ? data.items : []);
+        if (!isActive) {
+          return;
         }
-      } catch (err) {
-        if (isMounted) {
-          setError("ไม่สามารถโหลดข้อมูลทรีตเมนต์ได้");
-          setItems([]);
+
+        setItems(Array.isArray(data.items) ? data.items : []);
+      } catch (error) {
+        if (!isActive) {
+          return;
         }
+        setFetchError(error);
+        setItems([
+          {
+            code: "smooth",
+            title_en: myTreatmentMock.course.name
+          }
+        ]);
       } finally {
-        if (isMounted) {
+        if (isActive) {
           setIsLoading(false);
         }
       }
     };
 
-    loadTreatments();
+    if (mockUserId) {
+      loadTreatments();
+    }
 
     return () => {
-      isMounted = false;
+      isActive = false;
     };
-  }, []);
+  }, [mockUserId]);
+
+  const handleOwnedTreatment = (code) => {
+    if (code === "smooth") {
+      if (onSelectSmooth) {
+        onSelectSmooth();
+      } else {
+        navigate("/my-treatments/smooth");
+      }
+      return;
+    }
+
+    navigate(`/treatments/${code}`);
+  };
 
   return (
-    <AppLayout
-      breadcrumbs={[
-        { label: "Home", to: "/" },
-        { label: "My Treatments" }
-      ]}
-    >
-      <div className="treatments-page">
-        <header className="treatments-header">
-          <h1 className="treatments-title">ทรีตเมนต์ของคุณ</h1>
-        </header>
-        <main className="treatments-list">
-          {isLoading ? (
-            <p>กำลังโหลดข้อมูลทรีตเมนต์...</p>
-          ) : null}
-          {!isLoading && error ? <p>{error}</p> : null}
-          {!isLoading && items.length > 0
-            ? items.map((item) => (
-                <TreatmentOption
-                  key={item.code}
-                  title={item.title_en || item.title_th}
-                  imageSrc={smoothImage}
-                  isActive
-                  onClick={() => console.log(`/treatments/${item.code}`)}
-                />
-              ))
-            : null}
-          {!isLoading ? (
+    <div className="treatments-page">
+      <header className="treatments-header">
+        <span className="brand">SC GLAM</span>
+        <h1 className="treatments-title">ทรีตเมนต์ของคุณ</h1>
+      </header>
+      {isLoading ? (
+        <p className="treatments-status">Loading treatments...</p>
+      ) : null}
+      {fetchError ? (
+        <p className="treatments-status">
+          Failed to load treatments. Showing mock data.
+        </p>
+      ) : null}
+      <main className="treatments-list">
+        {!isLoading && items.length === 0 ? (
+          <TreatmentOption
+            title="Buy a treatment"
+            imageSrc={smoothImage}
+            isActive
+            onClick={() => navigate("/treatments/top-picks")}
+          />
+        ) : null}
+        {items.map((item) => {
+          const title = item.title_en || item.title_th || item.code;
+          return (
             <TreatmentOption
-              title="ซื้อทรีตเมนต์เพิ่ม"
+              key={item.code}
+              title={title}
               imageSrc={smoothImage}
-              isActive={false}
-              onClick={() => navigate("/treatments/top-picks")}
+              isActive
+              onClick={() => handleOwnedTreatment(item.code)}
             />
-          ) : null}
-        </main>
-      </div>
-    </AppLayout>
+          );
+        })}
+        {!isLoading && items.length > 0 ? (
+          <TreatmentOption
+            title="Buy other course"
+            imageSrc={smoothImage}
+            isActive
+            onClick={() => navigate("/treatments/top-picks")}
+          />
+        ) : null}
+      </main>
+    </div>
   );
 }
 

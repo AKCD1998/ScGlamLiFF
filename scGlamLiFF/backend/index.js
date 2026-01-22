@@ -1,36 +1,15 @@
+import "dotenv/config";
 import cors from "cors";
 import express from "express";
 import pg from "pg";
+import omiseRouter from "./routes/omise.routes.js";
 
 const { Pool } = pg;
 
 const app = express();
 const port = process.env.PORT || 3001;
 
-const defaultOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:4173"
-];
-const allowedOrigins = process.env.ALLOWED_ORIGIN
-  ? process.env.ALLOWED_ORIGIN.split(",").map((origin) => origin.trim())
-  : defaultOrigins;
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-      callback(new Error("Origin not allowed by CORS"));
-    }
-  })
-);
+app.use(cors());
 app.use(express.json());
 
 const pool = new Pool({
@@ -63,6 +42,8 @@ app.get("/api/me/treatments", async (req, res) => {
     res.status(500).json({ error: "Failed to load treatments" });
   }
 });
+
+app.use("/", omiseRouter);
 
 app.listen(port, () => {
   console.log(`Backend listening on port ${port}`);
