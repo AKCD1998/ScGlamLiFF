@@ -27,7 +27,7 @@ jobs:
         working-directory: scGlamLiFF
         env:
           VITE_API_BASE_URL: https://scglamliff.onrender.com
-          VITE_LIFF_ID: 2008932884-Rzo8V6B9
+          VITE_LIFF_ID: 2008955421-uwZ1btvE
           VITE_USE_MOCK: "false"
       - uses: actions/upload-pages-artifact@v3
         with:
