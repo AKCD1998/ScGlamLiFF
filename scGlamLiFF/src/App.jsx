@@ -68,7 +68,7 @@ function AuthGate({ children }) {
   const { status, mode, error, debug } = useAuth();
   const location = useLocation();
   const [showReadyBanner, setShowReadyBanner] = useState(true);
-  const showDebug = new URLSearchParams(location.search).get("debug") === "1";
+  const showDebug = import.meta.env.VITE_SHOW_DEBUG === "true";
   const debugStep = debug?.step || "unknown";
   const readyBannerText = `READY | path: ${location.pathname} | search: ${location.search || ""}`;
 
@@ -117,10 +117,10 @@ function AuthGate({ children }) {
         <AppLayout breadcrumbs={[{ label: "Home" }]}>
           <div className="page">
             <p>กำลังโหลด LIFF...</p>
-            <p>ขั้นตอน: {debugStep}</p>
+            {showDebug ? <p>ขั้นตอน: {debugStep}</p> : null}
           </div>
         </AppLayout>
-        <DebugPanel />
+        {showDebug ? <DebugPanel /> : null}
       </>
     );
   }
@@ -131,11 +131,11 @@ function AuthGate({ children }) {
         <AppLayout breadcrumbs={[{ label: "Home" }]}>
           <div className="page">
             <p>กรุณาเปิดหน้านี้ผ่าน LINE</p>
-            <p>ขั้นตอน: {debugStep}</p>
+            {showDebug ? <p>ขั้นตอน: {debugStep}</p> : null}
             <p>หากต้องการทดสอบบนเบราว์เซอร์ ให้เปิดโหมด mock</p>
           </div>
         </AppLayout>
-        <DebugPanel />
+        {showDebug ? <DebugPanel /> : null}
       </>
     );
   }
@@ -147,13 +147,15 @@ function AuthGate({ children }) {
           <div className="page">
             <p>ไม่สามารถเข้าสู่ระบบได้</p>
             <p>{error?.message || "โปรดลองอีกครั้งภายหลัง"}</p>
-            <p>ขั้นตอน: {debugStep}</p>
-            <button type="button" onClick={handleCopyDebug}>
-              Copy debug
-            </button>
+            {showDebug ? <p>ขั้นตอน: {debugStep}</p> : null}
+            {showDebug ? (
+              <button type="button" onClick={handleCopyDebug}>
+                Copy debug
+              </button>
+            ) : null}
           </div>
         </AppLayout>
-        <DebugPanel />
+        {showDebug ? <DebugPanel /> : null}
       </>
     );
   }
@@ -215,7 +217,7 @@ function AuthGate({ children }) {
       ) : null}
       {children}
       <LoadingOverlay open={status === "loading"} text="กำลังเข้าสู่ระบบ..." />
-      <DebugOverlay />
+      {showDebug ? <DebugOverlay /> : null}
       {showDebug ? <AuthStatusPanel /> : null}
       {showDebug ? <DebugPanel /> : null}
     </>
