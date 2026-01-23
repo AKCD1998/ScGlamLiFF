@@ -2,7 +2,9 @@ import liff from "@line/liff";
 import { apiUrl } from "./apiBase";
 
 export const initializeLIFFAndGetUser = async (onStep) => {
-  const liffId = import.meta.env.VITE_LIFF_ID;
+  const liffId = (import.meta.env.VITE_LIFF_ID || "").trim();
+  console.log("LIFF raw =", JSON.stringify(import.meta.env.VITE_LIFF_ID));
+  console.log("LIFF trimmed =", JSON.stringify(liffId), "len=", liffId.length);
   if (!liffId) {
     throw new Error("Missing VITE_LIFF_ID");
   }
@@ -19,6 +21,14 @@ export const initializeLIFFAndGetUser = async (onStep) => {
     isInClient: liff.isInClient(),
     isLoggedIn: liff.isLoggedIn()
   });
+
+  if (!liff.isInClient()) {
+    onStep?.({
+      step: "blocked_not_in_client",
+      isInClient: false
+    });
+    throw new Error("LIFF_NOT_IN_CLIENT");
+  }
 
   if (!liff.isLoggedIn()) {
     onStep?.({ step: "login_required" });

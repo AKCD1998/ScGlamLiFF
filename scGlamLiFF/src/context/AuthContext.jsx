@@ -61,23 +61,6 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    if (!liff.isInClient()) {
-      setState({
-        status: "blocked",
-        mode: "real",
-        user: null,
-        error: null,
-        debug: {
-          useMock: false,
-          isInClient: false,
-          isLoggedIn: false,
-          hasIdToken: false,
-          step: "blocked_not_in_client"
-        }
-      });
-      return;
-    }
-
     let isActive = true;
     setState((prev) => ({
       ...prev,
@@ -129,6 +112,23 @@ export function AuthProvider({ children }) {
         if (!isActive) {
           return;
         }
+        if (error?.message === "LIFF_NOT_IN_CLIENT") {
+          setState({
+            status: "blocked",
+            mode: "real",
+            user: null,
+            error: null,
+            debug: {
+              useMock: false,
+              isInClient: false,
+              isLoggedIn: false,
+              hasIdToken: false,
+              step: "blocked_not_in_client"
+            }
+          });
+          return;
+        }
+
         setState({
           status: "error",
           mode: "real",
