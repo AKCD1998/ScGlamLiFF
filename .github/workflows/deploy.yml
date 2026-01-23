@@ -25,6 +25,8 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: scGlamLiFF
+        env:
+          VITE_API_BASE_URL: https://scglamliff.onrender.com
       - uses: actions/upload-pages-artifact@v3
         with:
           path: scGlamLiFF/dist
