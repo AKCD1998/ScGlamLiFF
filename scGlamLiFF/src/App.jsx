@@ -222,6 +222,17 @@ function AuthGate({ children }) {
 }
 
 function AppRoutes() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const current = `${location.pathname}${location.search || ""}`;
+    const tokenPattern = /access_token=|id_token=|context_token=/i;
+    if (tokenPattern.test(current)) {
+      navigate("/", { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
+
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
