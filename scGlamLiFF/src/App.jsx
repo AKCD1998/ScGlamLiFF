@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import DebugOverlay from "./components/DebugOverlay";
 import AuthStatusPanel from "./components/AuthStatusPanel";
+import DebugPanel from "./components/DebugPanel";
 
 function ActionButton({ title, subtitle, onClick }) {
   return (
@@ -54,7 +55,31 @@ function HomePage() {
 }
 
 function AuthGate({ children }) {
-  const { status, mode, error } = useAuth();
+  const { status, mode, error, debug } = useAuth();
+  const debugStep = debug?.step || "unknown";
+
+  const debugPayload = {
+    status,
+    mode,
+    step: debugStep,
+    isInClient: debug?.isInClient ?? null,
+    isLoggedIn: debug?.isLoggedIn ?? null,
+    hasIdToken: debug?.hasIdToken ?? null,
+    error: error?.message || null
+  };
+  const debugText = JSON.stringify(debugPayload, null, 2);
+
+  const handleCopyDebug = async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(debugText);
+      } else {
+        window.prompt("Copy debug JSON:", debugText);
+      }
+    } catch (copyError) {
+      console.error("Failed to copy debug payload", copyError);
+    }
+  };
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -66,37 +91,60 @@ function AuthGate({ children }) {
     }
   }, []);
 
+  if (status === "loading") {
+    return (
+      <>
+        <AppLayout breadcrumbs={[{ label: "Home" }]}>
+          <div className="page">
+            <p>กำลังโหลด LIFF...</p>
+            <p>ขั้นตอน: {debugStep}</p>
+          </div>
+        </AppLayout>
+        <DebugPanel />
+      </>
+    );
+  }
+
   if (status === "blocked" && mode === "real") {
     return (
-      <AppLayout breadcrumbs={[{ label: "Home" }]}>
-        <div className="page">
-          <p>กรุณาเปิดหน้านี้ผ่าน LINE</p>
-          <p>หากต้องการทดสอบบนเบราว์เซอร์ ให้เปิดโหมด mock</p>
-        </div>
-      </AppLayout>
+      <>
+        <AppLayout breadcrumbs={[{ label: "Home" }]}>
+          <div className="page">
+            <p>กรุณาเปิดหน้านี้ผ่าน LINE</p>
+            <p>ขั้นตอน: {debugStep}</p>
+            <p>หากต้องการทดสอบบนเบราว์เซอร์ ให้เปิดโหมด mock</p>
+          </div>
+        </AppLayout>
+        <DebugPanel />
+      </>
     );
   }
 
   if (status === "error") {
     return (
-      <AppLayout breadcrumbs={[{ label: "Home" }]}>
-        <div className="page">
-          <p>ไม่สามารถเข้าสู่ระบบได้</p>
-          <p>{error?.message || "โปรดลองอีกครั้งภายหลัง"}</p>
-        </div>
-      </AppLayout>
+      <>
+        <AppLayout breadcrumbs={[{ label: "Home" }]}>
+          <div className="page">
+            <p>ไม่สามารถเข้าสู่ระบบได้</p>
+            <p>{error?.message || "โปรดลองอีกครั้งภายหลัง"}</p>
+            <p>ขั้นตอน: {debugStep}</p>
+            <button type="button" onClick={handleCopyDebug}>
+              Copy debug
+            </button>
+          </div>
+        </AppLayout>
+        <DebugPanel />
+      </>
     );
   }
 
   return (
     <>
       {children}
-      <LoadingOverlay
-        open={status === "loading"}
-        text="กำลังเข้าสู่ระบบ..."
-      />
+      <LoadingOverlay open={status === "loading"} text="กำลังเข้าสู่ระบบ..." />
       <DebugOverlay />
       <AuthStatusPanel />
+      <DebugPanel />
     </>
   );
 }

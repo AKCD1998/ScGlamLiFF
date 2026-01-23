@@ -42,7 +42,9 @@ export const initializeLIFFAndGetUser = async (onStep) => {
 
   onStep?.({ step: "token_ready", hasIdToken: Boolean(idToken) });
 
-  const response = await fetch(apiUrl("/api/liff/session"), {
+  const sessionUrl = apiUrl("/api/liff/session");
+  console.log("POST", sessionUrl);
+  const response = await fetch(sessionUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken })
@@ -50,7 +52,10 @@ export const initializeLIFFAndGetUser = async (onStep) => {
 
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({}));
-    throw new Error(errorPayload.error || "Failed to verify LINE session");
+    const payloadText = JSON.stringify(errorPayload);
+    throw new Error(
+      `Failed to verify LINE session (${response.status}): ${payloadText}`
+    );
   }
 
   const data = await response.json();

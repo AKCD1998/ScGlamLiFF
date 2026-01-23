@@ -130,11 +130,12 @@ export function AuthProvider({ children }) {
           return;
         }
 
+        const message = error?.message || String(error);
         setState({
           status: "error",
           mode: "real",
           user: null,
-          error,
+          error: { message },
           debug: {
             useMock: false,
             isInClient: null,
