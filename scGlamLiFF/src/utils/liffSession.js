@@ -15,6 +15,23 @@ export const initializeLIFFAndGetUser = async (onStep) => {
 
   await liff.init({ liffId });
 
+  if (typeof window !== "undefined") {
+    const hash = window.location.hash || "";
+    const tokenPattern = /(?:^#\/?access_token=|[&#]access_token=|[&#]id_token=|[&#]context_token=)/i;
+    if (tokenPattern.test(hash)) {
+      const cleanUrl = `${window.location.pathname}${window.location.search}#/`;
+      if (window.history?.replaceState) {
+        window.history.replaceState(null, "", cleanUrl);
+        if (typeof HashChangeEvent !== "undefined") {
+          window.dispatchEvent(new HashChangeEvent("hashchange"));
+        }
+      } else {
+        window.location.hash = "#/";
+      }
+      onStep?.({ step: "hash_cleared" });
+    }
+  }
+
   onStep?.({
     step: "init_done",
     isInClient: liff.isInClient(),
