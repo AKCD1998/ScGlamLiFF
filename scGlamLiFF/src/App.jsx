@@ -11,6 +11,8 @@ import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsPage from "./pages/TermsPage";
 import LoadingOverlay from "./components/LoadingOverlay";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import ErrorBoundary from "./components/ErrorBoundary";
+import DebugOverlay from "./components/DebugOverlay";
 
 function ActionButton({ title, subtitle, onClick }) {
   return (
@@ -81,6 +83,7 @@ function AuthGate({ children }) {
         open={status === "loading"}
         text="กำลังเข้าสู่ระบบ..."
       />
+      <DebugOverlay />
     </>
   );
 }
@@ -110,9 +113,20 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <AuthGate>
-        <AppRoutes />
-      </AuthGate>
+      <ErrorBoundary
+        fallback={
+          <AppLayout breadcrumbs={[{ label: "Home" }]}>
+            <div className="page">
+              <p>เกิดข้อผิดพลาดระหว่างโหลดหน้า</p>
+              <p>โปรดลองใหม่อีกครั้ง</p>
+            </div>
+          </AppLayout>
+        }
+      >
+        <AuthGate>
+          <AppRoutes />
+        </AuthGate>
+      </ErrorBoundary>
     </AuthProvider>
   );
 }
