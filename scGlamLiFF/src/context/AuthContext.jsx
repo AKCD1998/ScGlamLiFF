@@ -8,7 +8,8 @@ const AuthContext = createContext({
   status: "loading",
   mode: "mock",
   user: null,
-  error: null
+  error: null,
+  debug: null
 });
 
 export function AuthProvider({ children }) {
@@ -18,7 +19,14 @@ export function AuthProvider({ children }) {
     status: "loading",
     mode: useMock ? "mock" : "real",
     user: null,
-    error: null
+    error: null,
+    debug: {
+      useMock,
+      isInClient: liff.isInClient(),
+      isLoggedIn: liff.isLoggedIn(),
+      hasIdToken: false,
+      step: "init"
+    }
   });
 
   useEffect(() => {
@@ -37,7 +45,14 @@ export function AuthProvider({ children }) {
         lineUserId,
         displayName: "Test User"
       },
-      error: null
+      error: null,
+      debug: {
+        useMock: true,
+        isInClient: liff.isInClient(),
+        isLoggedIn: liff.isLoggedIn(),
+        hasIdToken: false,
+        step: "mock_ready"
+      }
     });
   }, [useMock, location.search]);
 
@@ -51,17 +66,46 @@ export function AuthProvider({ children }) {
         status: "blocked",
         mode: "real",
         user: null,
-        error: null
+        error: null,
+        debug: {
+          useMock: false,
+          isInClient: false,
+          isLoggedIn: false,
+          hasIdToken: false,
+          step: "blocked_not_in_client"
+        }
       });
       return;
     }
 
     let isActive = true;
-    setState((prev) => ({ ...prev, status: "loading", error: null }));
+    setState((prev) => ({
+      ...prev,
+      status: "loading",
+      error: null,
+      debug: {
+        ...prev.debug,
+        useMock: false,
+        isInClient: true,
+        isLoggedIn: liff.isLoggedIn(),
+        step: "loading"
+      }
+    }));
 
     const run = async () => {
       try {
-        const session = await initializeLIFFAndGetUser();
+        const session = await initializeLIFFAndGetUser((info) => {
+          if (!isActive) {
+            return;
+          }
+          setState((prev) => ({
+            ...prev,
+            debug: {
+              ...prev.debug,
+              ...info
+            }
+          }));
+        });
         if (!isActive || !session) {
           return;
         }
@@ -72,7 +116,14 @@ export function AuthProvider({ children }) {
             lineUserId: session.lineUserId,
             displayName: session.displayName
           },
-          error: null
+          error: null,
+          debug: {
+            useMock: false,
+            isInClient: liff.isInClient(),
+            isLoggedIn: liff.isLoggedIn(),
+            hasIdToken: Boolean(liff.getIDToken()),
+            step: "ready"
+          }
         });
       } catch (error) {
         if (!isActive) {
@@ -82,7 +133,14 @@ export function AuthProvider({ children }) {
           status: "error",
           mode: "real",
           user: null,
-          error
+          error,
+          debug: {
+            useMock: false,
+            isInClient: liff.isInClient(),
+            isLoggedIn: liff.isLoggedIn(),
+            hasIdToken: Boolean(liff.getIDToken()),
+            step: "error"
+          }
         });
       }
     };

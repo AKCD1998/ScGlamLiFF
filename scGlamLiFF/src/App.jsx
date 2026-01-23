@@ -13,6 +13,7 @@ import LoadingOverlay from "./components/LoadingOverlay";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import DebugOverlay from "./components/DebugOverlay";
+import AuthStatusPanel from "./components/AuthStatusPanel";
 
 function ActionButton({ title, subtitle, onClick }) {
   return (
@@ -84,6 +85,7 @@ function AuthGate({ children }) {
         text="กำลังเข้าสู่ระบบ..."
       />
       <DebugOverlay />
+      <AuthStatusPanel />
     </>
   );
 }
