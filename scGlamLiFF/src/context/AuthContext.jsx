@@ -22,9 +22,9 @@ export function AuthProvider({ children }) {
     error: null,
     debug: {
       useMock,
-      isInClient: liff.isInClient(),
-      isLoggedIn: liff.isLoggedIn(),
-      hasIdToken: false,
+      isInClient: null,
+      isLoggedIn: null,
+      hasIdToken: null,
       step: "init"
     }
   });
@@ -48,9 +48,9 @@ export function AuthProvider({ children }) {
       error: null,
       debug: {
         useMock: true,
-        isInClient: liff.isInClient(),
-        isLoggedIn: liff.isLoggedIn(),
-        hasIdToken: false,
+        isInClient: null,
+        isLoggedIn: null,
+        hasIdToken: null,
         step: "mock_ready"
       }
     });
@@ -69,8 +69,9 @@ export function AuthProvider({ children }) {
       debug: {
         ...prev.debug,
         useMock: false,
-        isInClient: true,
-        isLoggedIn: liff.isLoggedIn(),
+        isInClient: null,
+        isLoggedIn: null,
+        hasIdToken: null,
         step: "loading"
       }
     }));
@@ -136,9 +137,9 @@ export function AuthProvider({ children }) {
           error,
           debug: {
             useMock: false,
-            isInClient: liff.isInClient(),
-            isLoggedIn: liff.isLoggedIn(),
-            hasIdToken: Boolean(liff.getIDToken()),
+            isInClient: null,
+            isLoggedIn: null,
+            hasIdToken: null,
             step: "error"
           }
         });

@@ -10,8 +10,7 @@ export const initializeLIFFAndGetUser = async (onStep) => {
   }
 
   onStep?.({
-    step: "init_start",
-    isInClient: liff.isInClient()
+    step: "init_start"
   });
 
   await liff.init({ liffId });
