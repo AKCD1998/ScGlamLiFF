@@ -7,13 +7,26 @@ const ThemeContext = createContext({
 
 function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    const stored = localStorage.getItem("scglam_theme");
-    return stored || "light";
+    if (typeof window === "undefined") {
+      return "light";
+    }
+    try {
+      const stored = window.localStorage.getItem("scglam_theme");
+      return stored || "light";
+    } catch (error) {
+      return "light";
+    }
   });
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("scglam_theme", theme);
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.theme = theme;
+    }
+    try {
+      window.localStorage.setItem("scglam_theme", theme);
+    } catch (error) {
+      // Ignore storage write errors (e.g., blocked storage in webviews).
+    }
   }, [theme]);
 
   const value = useMemo(
