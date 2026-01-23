@@ -15,13 +15,13 @@ Every push to `main` runs the workflow at `.github/workflows/deploy.yml`, which:
 - uploads `scGlamLiFF/dist` to GitHub Pages
 
 ### Final GitHub Pages URL
-https://<github-username>.github.io/scGlamLiFFF/
+https://akcd1998.github.io/ScGlamLiFF/
 
 If your repo name is different, update:
 - `base` in `scGlamLiFF/vite.config.js`
 - the URL above in this README
 
 ## Troubleshooting
-- **404 at root** (`https://<user>.github.io/scGlamLiFFF/`): Pages is serving the repo root instead of the build output. Ensure Pages Source is GitHub Actions and the workflow has run successfully.
+- **404 at root** (`https://<user>.github.io/ScGlamLiFF/`): Pages is serving the repo root instead of the build output. Ensure Pages Source is GitHub Actions and the workflow has run successfully.
 - **404 on refresh / deep links** (`/my-treatments` etc.): GitHub Pages is static and does not know SPA routes. This is fixed by using `HashRouter` so URLs look like `/#/my-treatments`.
-- **Assets missing (CSS/JS not loading)**: The Vite `base` must match the repo name. It should be `"/scGlamLiFFF/"` for this repo.
+- **Assets missing (CSS/JS not loading)**: The Vite `base` must match the repo name exactly (case-sensitive). It should be `"/ScGlamLiFF/"` for this repo.
