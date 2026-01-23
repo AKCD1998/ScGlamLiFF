@@ -9,6 +9,8 @@ import MyTreatmentSmoothPage from "./pages/MyTreatmentSmoothPage";
 import AppLayout from "./components/AppLayout";
 import BookingFlowPage from "./pages/BookingFlowPage";
 import StaffScanPage from "./pages/StaffScanPage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import TermsPage from "./pages/TermsPage";
 
 function ActionButton({ title, subtitle, onClick }) {
   return (
@@ -77,6 +79,8 @@ function App() {
       />
       <Route path="/treatments/:slug" element={<TreatmentServiceDetailPage />} />
       <Route path="/staff/scan" element={<StaffScanPage />} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
     </Routes>
   );
 }
