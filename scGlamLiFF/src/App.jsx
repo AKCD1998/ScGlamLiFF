@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import "./App.css";
 import MyTreatmentsPage from "./MyTreatmentsPage";
@@ -16,6 +16,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import DebugOverlay from "./components/DebugOverlay";
 import AuthStatusPanel from "./components/AuthStatusPanel";
 import DebugPanel from "./components/DebugPanel";
+import { isDebugEnabled } from "./utils/debug";
 
 function ActionButton({ title, subtitle, onClick }) {
   return (
@@ -68,7 +69,10 @@ function AuthGate({ children }) {
   const { status, mode, error, debug } = useAuth();
   const location = useLocation();
   const [showReadyBanner, setShowReadyBanner] = useState(true);
-  const showDebug = import.meta.env.VITE_SHOW_DEBUG === "true";
+  const showDebug = useMemo(
+    () => isDebugEnabled(location.search),
+    [location.search]
+  );
   const debugStep = debug?.step || "unknown";
   const readyBannerText = `READY | path: ${location.pathname} | search: ${location.search || ""}`;
 
