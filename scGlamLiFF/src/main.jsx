@@ -11,7 +11,7 @@ if (typeof window !== "undefined") {
   window.__SCGLAM_BOOT__.jsStarted = true;
   const bootEl = document.getElementById("boot-status");
   if (bootEl) {
-    bootEl.style.display = "none";
+    bootEl.textContent = "JS started. Rendering app...";
   }
 }
 

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Route, Routes, useNavigate } from "react-router-dom";
 import "./App.css";
 import MyTreatmentsPage from "./MyTreatmentsPage";
@@ -54,6 +55,16 @@ function HomePage() {
 
 function AuthGate({ children }) {
   const { status, mode, error } = useAuth();
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const bootEl = document.getElementById("boot-status");
+    if (bootEl) {
+      bootEl.style.display = "none";
+    }
+  }, []);
 
   if (status === "blocked" && mode === "real") {
     return (

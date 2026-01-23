@@ -22,6 +22,17 @@
       if (bootEl) {
         bootEl.textContent = "HTML loaded. Waiting for app...";
       }
+      window.addEventListener("error", function (event) {
+        if (bootEl && event && event.message) {
+          bootEl.textContent = "JS error: " + event.message;
+        }
+      });
+      window.addEventListener("unhandledrejection", function (event) {
+        const reason = event && event.reason ? event.reason.message || event.reason : "";
+        if (bootEl && reason) {
+          bootEl.textContent = "Promise error: " + reason;
+        }
+      });
       setTimeout(() => {
         if (!window.__SCGLAM_BOOT__ || !window.__SCGLAM_BOOT__.jsStarted) {
           if (bootEl) {
