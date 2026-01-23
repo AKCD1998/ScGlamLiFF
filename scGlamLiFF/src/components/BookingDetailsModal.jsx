@@ -11,7 +11,12 @@ function BookingDetailsModal({
   redeemToken,
   onRedeem,
   isProcessing = false,
-  isDev = false
+  isDev = false,
+  bookingDetails = null,
+  showPaymentPlaceholder = false,
+  showAcknowledge = false,
+  onAcknowledge,
+  submitError
 }) {
   const barcodeRef = useRef(null);
   const qrCanvasRef = useRef(null);
@@ -21,7 +26,9 @@ function BookingDetailsModal({
       return;
     }
 
-    JsBarcode(barcodeRef.current, redeemToken, {
+    const tokenValue = redeemToken || "SCGLAM|BOOKING|PREVIEW";
+
+    JsBarcode(barcodeRef.current, tokenValue, {
       format: "CODE128",
       width: 1.6,
       height: 60,
@@ -37,9 +44,11 @@ function BookingDetailsModal({
       return;
     }
 
+    const tokenValue = redeemToken || "SCGLAM|BOOKING|PREVIEW";
+
     QRCode.toCanvas(
       qrCanvasRef.current,
-      redeemToken,
+      tokenValue,
       {
         width: 160,
         margin: 1,
@@ -76,11 +85,24 @@ function BookingDetailsModal({
     return null;
   }
 
-  const addons = Array.isArray(appointment?.addons) ? appointment.addons : [];
-  const addonsTotal =
-    typeof appointment?.addonsTotalTHB === "number"
+  const isBookingMode = Boolean(bookingDetails);
+  const addons = isBookingMode
+    ? bookingDetails?.toppings || []
+    : Array.isArray(appointment?.addons)
+      ? appointment.addons
+      : [];
+  const addonsTotal = isBookingMode
+    ? typeof bookingDetails?.addonsTotal === "number"
+      ? bookingDetails.addonsTotal
+      : null
+    : typeof appointment?.addonsTotalTHB === "number"
       ? appointment.addonsTotalTHB
       : null;
+  const displayDate = isBookingMode
+    ? bookingDetails?.dateText
+    : appointment?.dateText;
+  const displayTime = isBookingMode ? bookingDetails?.timeText : null;
+  const displayBranch = isBookingMode ? bookingDetails?.branchLabel : null;
 
   const modalBody = (
     <div className="booking-modal__backdrop" role="dialog" aria-modal="true">
@@ -94,17 +116,30 @@ function BookingDetailsModal({
         </header>
 
         <div className="booking-modal__content">
+          {displayBranch ? (
+            <div className="booking-modal__section">
+              <p className="booking-modal__label">สาขา</p>
+              <p className="booking-modal__value">{displayBranch}</p>
+            </div>
+          ) : null}
           <div className="booking-modal__section">
             <p className="booking-modal__label">วันและเวลานัดหมาย</p>
             <p className="booking-modal__value">
-              {appointment?.dateText || "ยังไม่ระบุวันนัดหมาย"}
+              {displayDate || "ยังไม่ระบุวันนัดหมาย"}{" "}
+              {displayTime || ""}
             </p>
           </div>
 
           <div className="booking-modal__section">
-            <p className="booking-modal__instruction">
-              ยื่น QR code ให้พนักงานสแกน (ยืนยันการเข้ารับบริการ ไม่ใช่การชำระเงิน)
-            </p>
+            {isBookingMode ? (
+              <p className="booking-modal__instruction">
+                ค่าคอร์สได้ชำระเรียบร้อยแล้ว ค่าใช้จ่ายเพิ่มเติมจะชำระเมื่อรับบริการ
+              </p>
+            ) : (
+              <p className="booking-modal__instruction">
+                ยื่น QR code ให้พนักงานสแกน (ยืนยันการเข้ารับบริการ ไม่ใช่การชำระเงิน)
+              </p>
+            )}
           </div>
 
           <div className="booking-modal__redeem-card">
@@ -142,12 +177,35 @@ function BookingDetailsModal({
             <span>ตรวจสอบราคาการบริการเพิ่มเติม</span>
             <span>{addonsTotal !== null ? `฿${addonsTotal}` : "-"}</span>
           </div>
+
+          {showPaymentPlaceholder ? (
+            <div className="booking-modal__section booking-modal__payment-note">
+              <p className="booking-modal__label">โหมดจำลอง (DEV)</p>
+              <p className="booking-modal__instruction">
+                QR/Barcode นี้ใช้สำหรับยืนยันการรับบริการ และใช้ชำระค่าใช้จ่ายเพิ่มเติมในอนาคต
+              </p>
+              <p className="booking-modal__instruction">ยังไม่ตัดเงินจริง</p>
+            </div>
+          ) : null}
         </div>
 
         <div className="booking-modal__actions">
           <button type="button" className="secondary" onClick={onClose}>
             ปิด
           </button>
+          {submitError ? (
+            <span className="booking-modal__error">{submitError}</span>
+          ) : null}
+          {showAcknowledge ? (
+            <button
+              type="button"
+              className="primary"
+              onClick={onAcknowledge || onClose}
+              disabled={isProcessing}
+            >
+              รับทราบ
+            </button>
+          ) : null}
           {isDev ? (
             <button
               type="button"

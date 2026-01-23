@@ -1,0 +1,7 @@
+-- Optional one-time fix for appointments inserted as UTC instead of Bangkok local.
+-- Review the date range before running.
+-- Example: subtract 7 hours for appointments created during Jan 2026.
+-- update appointments
+-- set scheduled_at = scheduled_at - interval '7 hours'
+-- where scheduled_at >= '2026-01-01'::timestamptz
+--   and scheduled_at < '2026-02-01'::timestamptz;

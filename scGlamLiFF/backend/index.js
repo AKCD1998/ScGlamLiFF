@@ -7,7 +7,7 @@ import omiseRouter from "./routes/omise.routes.js";
 const { Pool } = pg;
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3002;
 
 app.use(cors());
 app.use(express.json());
@@ -16,6 +16,153 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
+
+const SHOP_TZ = "Asia/Bangkok";
+const LEAD_TIME_MINUTES = 120;
+const SLOT_INTERVAL_MINUTES = 45;
+const OPEN_TIME = "08:00";
+const LAST_START_TIME = "18:15";
+
+const parseTimeToMinutes = (time) => {
+  const [hours, minutes] = time.split(":").map((part) => Number(part));
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null;
+  }
+  return hours * 60 + minutes;
+};
+
+const minutesToTime = (minutes) => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+};
+
+const getBangkokNow = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SHOP_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(new Date());
+
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return new Date(
+    `${map.year}-${map.month}-${map.day}T${map.hour}:${map.minute}:${map.second}+07:00`
+  );
+};
+
+const getBangkokDateOnly = (date) => {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: SHOP_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+};
+
+const buildBangkokDateTime = (dateStr, timeStr) => {
+  if (!dateStr || !timeStr) {
+    return null;
+  }
+  const [year, month, day] = dateStr.split("-").map((part) => Number(part));
+  const [hours, minutes] = timeStr.split(":").map((part) => Number(part));
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes)
+  ) {
+    return null;
+  }
+  return new Date(
+    `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(
+      day
+    ).padStart(2, "0")}T${String(hours).padStart(2, "0")}:${String(
+      minutes
+    ).padStart(2, "0")}:00+07:00`
+  );
+};
+
+const getBangkokDayRange = (dateStr) => {
+  const start = buildBangkokDateTime(dateStr, "00:00");
+  const end = buildBangkokDateTime(dateStr, "23:59");
+  if (!start || !end) {
+    return null;
+  }
+  end.setSeconds(59, 999);
+  return { start, end };
+};
+
+const isSlotOnGrid = (timeStr) => {
+  const minutes = parseTimeToMinutes(timeStr);
+  const openMinutes = parseTimeToMinutes(OPEN_TIME);
+  const lastMinutes = parseTimeToMinutes(LAST_START_TIME);
+  if (minutes === null || openMinutes === null || lastMinutes === null) {
+    return false;
+  }
+  if (minutes < openMinutes || minutes > lastMinutes) {
+    return false;
+  }
+  return (minutes - openMinutes) % SLOT_INTERVAL_MINUTES === 0;
+};
+
+const generateSlots = () => {
+  const openMinutes = parseTimeToMinutes(OPEN_TIME);
+  const lastMinutes = parseTimeToMinutes(LAST_START_TIME);
+  if (openMinutes === null || lastMinutes === null) {
+    return [];
+  }
+  const slots = [];
+  for (
+    let minutes = openMinutes;
+    minutes <= lastMinutes;
+    minutes += SLOT_INTERVAL_MINUTES
+  ) {
+    slots.push(minutesToTime(minutes));
+  }
+  return slots;
+};
+
+const getBangkokMinutes = (date) => {
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: SHOP_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+  const [hourStr, minuteStr] = formatter.format(date).split(":");
+  return Number(hourStr) * 60 + Number(minuteStr);
+};
+
+const validateSchedule = ({ date, time, nowBangkok }) => {
+  const scheduledAt = buildBangkokDateTime(date, time);
+  if (!scheduledAt) {
+    return { ok: false, status: 400, error: "Invalid date or time format" };
+  }
+
+  if (!isSlotOnGrid(time)) {
+    return { ok: false, status: 422, error: "Time is not on slot grid" };
+  }
+
+  const lastMinutes = parseTimeToMinutes(LAST_START_TIME);
+  const slotMinutes = parseTimeToMinutes(time);
+  if (slotMinutes === null || lastMinutes === null || slotMinutes > lastMinutes) {
+    return { ok: false, status: 422, error: "Time is after last booking start" };
+  }
+
+  const leadMs = LEAD_TIME_MINUTES * 60 * 1000;
+  const minAllowed = new Date(nowBangkok.getTime() + leadMs);
+  if (scheduledAt < minAllowed) {
+    return { ok: false, status: 422, error: "Lead time requirement not met" };
+  }
+
+  return { ok: true, scheduledAt };
+};
 
 app.get("/health", (req, res) => {
   res.json({ ok: true });
@@ -40,6 +187,663 @@ app.get("/api/me/treatments", async (req, res) => {
   } catch (error) {
     console.error("Failed to load treatments", error);
     res.status(500).json({ error: "Failed to load treatments" });
+  }
+});
+
+app.get("/api/toppings", async (req, res) => {
+  const isActiveOnly = req.query.active !== "false";
+
+  try {
+    // SQL: select active toppings ordered by category and price.
+    const result = await pool.query(
+      `select id, code, category, title_th, title_en, price_thb
+       from toppings
+       where ($1::boolean is false) or is_active = true
+       order by category, price_thb, code`,
+      [!isActiveOnly ? false : true]
+    );
+
+    res.json({ items: result.rows });
+  } catch (error) {
+    console.error("Failed to load toppings", error);
+    if (error.code === "42P01") {
+      res.status(500).json({
+        error: "Missing toppings table. Create toppings before using /api/toppings."
+      });
+      return;
+    }
+    res.status(500).json({ error: "Failed to load toppings" });
+  }
+});
+
+app.get("/api/availability", async (req, res) => {
+  const branchId = req.query.branch_id;
+  const date = req.query.date;
+  const treatmentCode = req.query.treatment_code;
+
+  if (!branchId || !date || !treatmentCode) {
+    res.status(400).json({ error: "branch_id, date, treatment_code are required" });
+    return;
+  }
+
+  const nowBangkok = getBangkokNow();
+  const todayBangkok = getBangkokDateOnly(nowBangkok);
+
+  if (date < todayBangkok) {
+    res.status(422).json({ error: "Cannot book in the past" });
+    return;
+  }
+
+  const dayRange = getBangkokDayRange(date);
+  if (!dayRange) {
+    res.status(400).json({ error: "Invalid date format" });
+    return;
+  }
+
+  try {
+    // SQL: ensure treatment exists.
+    const treatmentResult = await pool.query(
+      "select id from treatments where code = $1",
+      [treatmentCode]
+    );
+
+    if (treatmentResult.rowCount === 0) {
+      res.status(400).json({ error: "Treatment not found" });
+      return;
+    }
+
+    // SQL: load booked slots for date/branch.
+    const appointmentsResult = await pool.query(
+      `select scheduled_at
+       from appointments
+       where branch_id = $1
+         and scheduled_at >= $2
+         and scheduled_at <= $3
+         and status in ('booked', 'rescheduled')`,
+      [branchId, dayRange.start, dayRange.end]
+    );
+
+    const bookedTimes = new Set(
+      appointmentsResult.rows.map((row) => {
+        const formatted = new Intl.DateTimeFormat("en-GB", {
+          timeZone: SHOP_TZ,
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false
+        }).format(new Date(row.scheduled_at));
+        return formatted;
+      })
+    );
+
+    // SQL: load blocked slots for date/branch.
+    const blockedResult = await pool.query(
+      `select slot_start, slot_end
+       from branch_slots
+       where branch_id = $1
+         and is_blocked = true
+         and slot_start < $3
+         and slot_end > $2`,
+      [branchId, dayRange.start, dayRange.end]
+    );
+
+    const blockedRanges = blockedResult.rows.map((row) => ({
+      startMinutes: getBangkokMinutes(new Date(row.slot_start)),
+      endMinutes: getBangkokMinutes(new Date(row.slot_end))
+    }));
+
+    const openMinutes = parseTimeToMinutes(OPEN_TIME);
+    const leadTimeDate = new Date(
+      nowBangkok.getTime() + LEAD_TIME_MINUTES * 60 * 1000
+    );
+    const leadMinutes = getBangkokMinutes(leadTimeDate);
+    const elapsedFromOpen = Math.max(0, leadMinutes - openMinutes);
+    const leadSteps = Math.ceil(elapsedFromOpen / SLOT_INTERVAL_MINUTES);
+    const minSlotMinutes =
+      date === todayBangkok ? openMinutes + leadSteps * SLOT_INTERVAL_MINUTES : null;
+
+    const slots = generateSlots().filter((slot) => {
+      if (bookedTimes.has(slot)) {
+        return false;
+      }
+      const minutes = parseTimeToMinutes(slot);
+      if (minutes === null) {
+        return false;
+      }
+      if (minSlotMinutes !== null && minutes < minSlotMinutes) {
+        return false;
+      }
+      const isBlocked = blockedRanges.some(
+        (range) => minutes >= range.startMinutes && minutes < range.endMinutes
+      );
+      return !isBlocked;
+    });
+
+    res.json({ slots });
+  } catch (error) {
+    console.error("Failed to load availability", error);
+    res.status(500).json({ error: "Failed to load availability" });
+  }
+});
+
+app.post("/api/appointments", async (req, res) => {
+  const {
+    line_user_id: lineUserId,
+    treatment_code: treatmentCode,
+    branch_id: branchId,
+    date,
+    time,
+    selected_toppings: selectedToppings,
+    addons_total_thb: addonsTotalThb
+  } = req.body || {};
+
+  let normalizedToppings = selectedToppings;
+  if (typeof normalizedToppings === "string") {
+    try {
+      normalizedToppings = JSON.parse(normalizedToppings);
+    } catch (error) {
+      res.status(400).json({ error: "selected_toppings must be valid JSON" });
+      return;
+    }
+  }
+
+  if (normalizedToppings && !Array.isArray(normalizedToppings)) {
+    if (typeof normalizedToppings === "object") {
+      normalizedToppings = [normalizedToppings];
+    } else {
+      res.status(400).json({ error: "selected_toppings must be an array" });
+      return;
+    }
+  }
+
+  if (!lineUserId || !treatmentCode || !branchId || !date || !time) {
+    res.status(400).json({ error: "Missing required booking fields" });
+    return;
+  }
+
+  const nowBangkok = getBangkokNow();
+  const scheduleCheck = validateSchedule({ date, time, nowBangkok });
+  if (!scheduleCheck.ok) {
+    res.status(scheduleCheck.status).json({ error: scheduleCheck.error });
+    return;
+  }
+
+  const scheduledAt = scheduleCheck.scheduledAt;
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // SQL: load treatment id by code.
+    const treatmentResult = await client.query(
+      "select id from treatments where code = $1",
+      [treatmentCode]
+    );
+
+    if (treatmentResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: "Treatment not found" });
+      return;
+    }
+
+    const treatmentId = treatmentResult.rows[0].id;
+
+    // SQL: check active course with remaining sessions.
+    const courseResult = await client.query(
+      `select remaining_sessions
+       from user_treatments
+       where line_user_id = $1
+         and treatment_id = $2
+         and is_active = true`,
+      [lineUserId, treatmentId]
+    );
+
+    if (
+      courseResult.rowCount === 0 ||
+      Number(courseResult.rows[0].remaining_sessions) <= 0
+    ) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "No remaining sessions for this course" });
+      return;
+    }
+
+    // SQL: prevent double booking for the same slot.
+    const existsResult = await client.query(
+      `select 1
+       from appointments
+       where branch_id = $1
+         and scheduled_at = $2
+         and status in ('booked', 'rescheduled')
+       limit 1`,
+      [branchId, scheduledAt]
+    );
+
+    if (existsResult.rowCount > 0) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Slot already booked" });
+      return;
+    }
+
+    // SQL: ensure slot is not blocked by branch_slots.
+    const blockedResult = await client.query(
+      `select 1
+       from branch_slots
+       where branch_id = $1
+         and is_blocked = true
+         and slot_start <= $2
+         and slot_end > $2
+       limit 1`,
+      [branchId, scheduledAt]
+    );
+
+    if (blockedResult.rowCount > 0) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Slot is blocked by staff" });
+      return;
+    }
+
+    // SQL: insert appointment.
+    const toppingsPayload = JSON.stringify(normalizedToppings || []);
+
+    const appointmentResult = await client.query(
+      `insert into appointments
+       (line_user_id, treatment_id, branch_id, scheduled_at, status,
+        selected_toppings, addons_total_thb, reschedule_count, max_reschedule,
+        cancellation_policy, created_at, updated_at)
+       values ($1, $2, $3, $4, 'booked', $5::jsonb, $6, 0, 1, 'standard', now(), now())
+       returning id, line_user_id, treatment_id, branch_id, scheduled_at,
+                 status, selected_toppings, addons_total_thb, reschedule_count, max_reschedule`,
+      [
+        lineUserId,
+        treatmentId,
+        branchId,
+        scheduledAt,
+        toppingsPayload,
+        Number.isFinite(Number(addonsTotalThb)) ? Number(addonsTotalThb) : 0
+      ]
+    );
+
+    const appointment = appointmentResult.rows[0];
+
+    // SQL: insert appointment_events log.
+    await client.query(
+      `insert into appointment_events
+       (appointment_id, event_type, actor, note, meta, event_at)
+       values ($1, 'created', 'customer', $2, $3, now())`,
+      [
+        appointment.id,
+        null,
+        {
+          branch_id: branchId,
+          scheduled_at: scheduledAt,
+          selected_toppings: normalizedToppings || [],
+          addons_total_thb: addonsTotalThb || 0
+        }
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      id: appointment.id,
+      branch_id: appointment.branch_id,
+      scheduled_at: appointment.scheduled_at,
+      status: appointment.status,
+      selected_toppings: appointment.selected_toppings,
+      addons_total_thb: appointment.addons_total_thb
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Failed to create appointment", error);
+    res.status(500).json({ error: "Failed to create appointment" });
+  } finally {
+    client.release();
+  }
+});
+
+app.get("/api/appointments/next", async (req, res) => {
+  const lineUserId = req.query.line_user_id;
+  const treatmentCode = req.query.treatment_code;
+
+  if (!lineUserId || !treatmentCode) {
+    res.status(400).json({ error: "line_user_id and treatment_code are required" });
+    return;
+  }
+
+  const nowBangkok = getBangkokNow();
+
+  try {
+    // SQL: resolve treatment id.
+    const treatmentResult = await pool.query(
+      "select id from treatments where code = $1",
+      [treatmentCode]
+    );
+
+    if (treatmentResult.rowCount === 0) {
+      res.status(400).json({ error: "Treatment not found" });
+      return;
+    }
+
+    const treatmentId = treatmentResult.rows[0].id;
+
+    // SQL: find earliest future appointment.
+    const appointmentResult = await pool.query(
+      `select id, branch_id, scheduled_at, status, selected_toppings, addons_total_thb
+       from appointments
+       where line_user_id = $1
+         and treatment_id = $2
+         and status in ('booked', 'rescheduled')
+         and scheduled_at >= $3
+       order by scheduled_at asc
+       limit 1`,
+      [lineUserId, treatmentId, nowBangkok]
+    );
+
+    if (appointmentResult.rowCount === 0) {
+      res.json({ item: null });
+      return;
+    }
+
+    res.json({ item: appointmentResult.rows[0] });
+  } catch (error) {
+    console.error("Failed to load next appointment", error);
+    res.status(500).json({ error: "Failed to load next appointment" });
+  }
+});
+
+app.patch("/api/appointments/:id/reschedule", async (req, res) => {
+  const appointmentId = req.params.id;
+  const { date, time } = req.body || {};
+
+  if (!date || !time) {
+    res.status(400).json({ error: "date and time are required" });
+    return;
+  }
+
+  const nowBangkok = getBangkokNow();
+  const scheduleCheck = validateSchedule({ date, time, nowBangkok });
+  if (!scheduleCheck.ok) {
+    res.status(scheduleCheck.status).json({ error: scheduleCheck.error });
+    return;
+  }
+
+  const scheduledAt = scheduleCheck.scheduledAt;
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // SQL: lock appointment for update.
+    const appointmentResult = await client.query(
+      `select *
+       from appointments
+       where id = $1
+       for update`,
+      [appointmentId]
+    );
+
+    if (appointmentResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "Appointment not found" });
+      return;
+    }
+
+    const appointment = appointmentResult.rows[0];
+    if (["completed", "cancelled"].includes(appointment.status)) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Appointment cannot be rescheduled" });
+      return;
+    }
+
+    const maxReschedule =
+      Number(appointment.max_reschedule) || 1;
+    const currentReschedule = Number(appointment.reschedule_count) || 0;
+    if (currentReschedule >= maxReschedule) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Reschedule limit reached" });
+      return;
+    }
+
+    // SQL: prevent double booking for the same slot.
+    const existsResult = await client.query(
+      `select 1
+       from appointments
+       where branch_id = $1
+         and scheduled_at = $2
+         and status in ('booked', 'rescheduled')
+         and id <> $3
+       limit 1`,
+      [appointment.branch_id, scheduledAt, appointmentId]
+    );
+
+    if (existsResult.rowCount > 0) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Slot already booked" });
+      return;
+    }
+
+    // SQL: ensure slot is not blocked by branch_slots.
+    const blockedResult = await client.query(
+      `select 1
+       from branch_slots
+       where branch_id = $1
+         and is_blocked = true
+         and slot_start <= $2
+         and slot_end > $2
+       limit 1`,
+      [appointment.branch_id, scheduledAt]
+    );
+
+    if (blockedResult.rowCount > 0) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Slot is blocked by staff" });
+      return;
+    }
+
+    // SQL: update appointment schedule.
+    const updateResult = await client.query(
+      `update appointments
+       set scheduled_at = $1,
+           status = 'rescheduled',
+           reschedule_count = reschedule_count + 1,
+           updated_at = now()
+       where id = $2
+       returning id, branch_id, scheduled_at, status, reschedule_count`,
+      [scheduledAt, appointmentId]
+    );
+
+    // SQL: insert appointment_events log.
+    await client.query(
+      `insert into appointment_events
+       (appointment_id, event_type, actor, note, meta, event_at)
+       values ($1, 'rescheduled', 'customer', $2, $3, now())`,
+      [
+        appointmentId,
+        null,
+        { scheduled_at: scheduledAt }
+      ]
+    );
+
+    await client.query("COMMIT");
+    res.json({ item: updateResult.rows[0] });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Failed to reschedule appointment", error);
+    res.status(500).json({ error: "Failed to reschedule appointment" });
+  } finally {
+    client.release();
+  }
+});
+
+app.patch("/api/appointments/:id/cancel", async (req, res) => {
+  const appointmentId = req.params.id;
+  const { reason } = req.body || {};
+  const nowBangkok = getBangkokNow();
+  const nowBangkokDate = getBangkokDateOnly(nowBangkok);
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // SQL: lock appointment for update.
+    const appointmentResult = await client.query(
+      `select *
+       from appointments
+       where id = $1
+       for update`,
+      [appointmentId]
+    );
+
+    if (appointmentResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "Appointment not found" });
+      return;
+    }
+
+    const appointment = appointmentResult.rows[0];
+    if (appointment.status === "completed") {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Appointment already completed" });
+      return;
+    }
+
+    const scheduledAt = new Date(appointment.scheduled_at);
+    const hoursDiff = (scheduledAt - nowBangkok) / (1000 * 60 * 60);
+    const scheduledDate = getBangkokDateOnly(scheduledAt);
+    let refundPolicy = "no_refund";
+    let rescheduleAllowed = false;
+
+    if (hoursDiff >= 24) {
+      refundPolicy = "full_refund";
+    } else if (scheduledDate === nowBangkokDate) {
+      refundPolicy = "no_refund";
+      rescheduleAllowed =
+        Number(appointment.reschedule_count || 0) <
+        Number(appointment.max_reschedule || 1);
+    }
+
+    // SQL: update appointment status.
+    await client.query(
+      `update appointments
+       set status = 'cancelled',
+           updated_at = now()
+       where id = $1`,
+      [appointmentId]
+    );
+
+    // SQL: insert appointment_events log.
+    await client.query(
+      `insert into appointment_events
+       (appointment_id, event_type, actor, note, meta, event_at)
+       values ($1, 'cancelled', 'customer', $2, $3, now())`,
+      [
+        appointmentId,
+        reason || null,
+        {
+          cancelled_at: nowBangkok,
+          refund_policy: refundPolicy,
+          reschedule_allowed: rescheduleAllowed
+        }
+      ]
+    );
+
+    await client.query("COMMIT");
+    res.json({
+      ok: true,
+      refund_policy: refundPolicy,
+      reschedule_allowed: rescheduleAllowed
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Failed to cancel appointment", error);
+    res.status(500).json({ error: "Failed to cancel appointment" });
+  } finally {
+    client.release();
+  }
+});
+
+app.post("/api/appointments/:id/redeem", async (req, res) => {
+  const appointmentId = req.params.id;
+  const { staff_id: staffId, branch_id: branchId } = req.body || {};
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // SQL: lock appointment for update.
+    const appointmentResult = await client.query(
+      `select *
+       from appointments
+       where id = $1
+       for update`,
+      [appointmentId]
+    );
+
+    if (appointmentResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "Appointment not found" });
+      return;
+    }
+
+    const appointment = appointmentResult.rows[0];
+    if (!["booked", "rescheduled"].includes(appointment.status)) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Appointment cannot be redeemed" });
+      return;
+    }
+
+    // SQL: decrement remaining sessions.
+    const usageResult = await client.query(
+      `update user_treatments
+       set remaining_sessions = remaining_sessions - 1
+       where line_user_id = $1
+         and treatment_id = $2
+         and is_active = true
+         and remaining_sessions > 0
+       returning remaining_sessions`,
+      [appointment.line_user_id, appointment.treatment_id]
+    );
+
+    if (usageResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "No remaining sessions to redeem" });
+      return;
+    }
+
+    const remainingSessions = usageResult.rows[0].remaining_sessions;
+
+    // SQL: update appointment status.
+    await client.query(
+      `update appointments
+       set status = 'completed',
+           updated_at = now()
+       where id = $1`,
+      [appointmentId]
+    );
+
+    // SQL: insert appointment_events log.
+    await client.query(
+      `insert into appointment_events
+       (appointment_id, event_type, actor, note, meta, event_at)
+       values ($1, 'redeemed', 'staff', $2, $3, now())`,
+      [
+        appointmentId,
+        null,
+        { staff_id: staffId || null, branch_id: branchId || null }
+      ]
+    );
+
+    await client.query("COMMIT");
+    res.json({
+      ok: true,
+      remaining_sessions: remainingSessions,
+      appointment_status: "completed"
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Failed to redeem appointment", error);
+    res.status(500).json({ error: "Failed to redeem appointment" });
+  } finally {
+    client.release();
   }
 });
 

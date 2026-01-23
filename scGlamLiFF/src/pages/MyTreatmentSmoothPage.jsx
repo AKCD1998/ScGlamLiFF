@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import myTreatmentMock from "../data/myTreatmentMock";
-import { getNextBooking } from "../data/bookingMock";
 import LineProfileCard from "../components/LineProfileCard";
 import CourseBundleList from "../components/CourseBundleList";
 import NextAppointmentCard from "../components/NextAppointmentCard";
 import ServiceHistoryTable from "../components/ServiceHistoryTable";
 import AppLayout from "../components/AppLayout";
 import { getMockUserId, storeMockUserIdFromQuery } from "../utils/mockAuth";
+import LoadingOverlay from "../components/LoadingOverlay";
+import formatBangkokDateTime from "../utils/formatBangkokDateTime";
 import "./MyTreatmentSmoothPage.css";
 
 function MyTreatmentSmoothPage() {
@@ -19,8 +20,14 @@ function MyTreatmentSmoothPage() {
   const [mockUserId, setMockUserId] = useState(getMockUserId());
   const [historyData, setHistoryData] = useState({ purchaseRows: [], usageRows: [] });
   const [historyError, setHistoryError] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [bundleCourses, setBundleCourses] = useState([]);
   const [bundleError, setBundleError] = useState(null);
+  const [bundleLoading, setBundleLoading] = useState(false);
+  const [nextAppointment, setNextAppointment] = useState(null);
+  const [appointmentStatus, setAppointmentStatus] = useState("idle");
+  const [appointmentError, setAppointmentError] = useState(null);
+  const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0);
 
   useEffect(() => {
     const queryUserId = storeMockUserIdFromQuery();
@@ -112,6 +119,7 @@ function MyTreatmentSmoothPage() {
     };
 
     const loadHistory = async () => {
+      setHistoryLoading(true);
       setHistoryError(null);
       const encodedUserId = encodeURIComponent(mockUserId);
       const proxyUrl = `/api/me/history?line_user_id=${encodedUserId}&treatment_code=smooth`;
@@ -139,6 +147,10 @@ function MyTreatmentSmoothPage() {
         }
         setHistoryError(error);
         setHistoryData({ purchaseRows: [], usageRows: [] });
+      } finally {
+        if (isActive) {
+          setHistoryLoading(false);
+        }
       }
     };
 
@@ -163,6 +175,7 @@ function MyTreatmentSmoothPage() {
     };
 
     const loadCourses = async () => {
+      setBundleLoading(true);
       setBundleError(null);
       const encodedUserId = encodeURIComponent(mockUserId);
       const proxyUrl = `/api/my-courses?lineUserId=${encodedUserId}`;
@@ -193,6 +206,10 @@ function MyTreatmentSmoothPage() {
         setBundleError(error);
         setBundleCourses([]);
         setNoSmoothCourse(true);
+      } finally {
+        if (isActive) {
+          setBundleLoading(false);
+        }
       }
     };
 
@@ -205,14 +222,61 @@ function MyTreatmentSmoothPage() {
     };
   }, [mockUserId, location.key]);
 
-  const appointmentData = useMemo(
-    () =>
-      getNextBooking({
-        lineUserId: mockUserId || "U_TEST_001",
-        treatmentCode: "smooth"
-      }),
-    [mockUserId]
-  );
+  useEffect(() => {
+    let isActive = true;
+
+    const fetchNext = async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+      return response.json();
+    };
+
+    const loadNextAppointment = async () => {
+      setAppointmentStatus("loading");
+      setAppointmentError(null);
+      const encodedUserId = encodeURIComponent(mockUserId);
+      const proxyUrl = `/api/appointments/next?line_user_id=${encodedUserId}&treatment_code=smooth`;
+      const fallbackUrl = `http://localhost:3002/api/appointments/next?line_user_id=${encodedUserId}&treatment_code=smooth`;
+
+      try {
+        let data;
+        try {
+          data = await fetchNext(proxyUrl);
+        } catch (error) {
+          data = await fetchNext(fallbackUrl);
+        }
+
+        if (!isActive) {
+          return;
+        }
+
+        const item = data.item || null;
+        setNextAppointment(item);
+        if (item) {
+          setAppointmentStatus("ready");
+        } else {
+          setAppointmentStatus("empty");
+        }
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        setNextAppointment(null);
+        setAppointmentError(error);
+        setAppointmentStatus("error");
+      }
+    };
+
+    if (mockUserId) {
+      loadNextAppointment();
+    }
+
+    return () => {
+      isActive = false;
+    };
+  }, [mockUserId, location.key, appointmentRefreshKey]);
 
   const bundleData = useMemo(
     () =>
@@ -232,6 +296,12 @@ function MyTreatmentSmoothPage() {
     ...myTreatmentMock.profile,
     id: mockUserId || myTreatmentMock.profile.id
   };
+
+  const isPageLoading =
+    isLoading ||
+    historyLoading ||
+    bundleLoading ||
+    appointmentStatus === "loading";
 
   return (
     <AppLayout
@@ -274,12 +344,43 @@ function MyTreatmentSmoothPage() {
           ) : null}
         </section>
 
-        <NextAppointmentCard appointment={appointmentData} />
+        <NextAppointmentCard
+          status={appointmentStatus}
+          onRetry={() => setAppointmentRefreshKey((value) => value + 1)}
+          appointment={
+            nextAppointment
+              ? {
+                  id: nextAppointment.id,
+                  treatmentCode: "smooth",
+                  // Avoid double conversion: format once in Bangkok time.
+                  dateText: formatBangkokDateTime(nextAppointment.scheduled_at),
+                  scheduledAtRaw: nextAppointment.scheduled_at,
+                  addons: Array.isArray(nextAppointment.selected_toppings)
+                    ? nextAppointment.selected_toppings.map((item) => ({
+                        name: item.name,
+                        priceTHB: item.price_thb
+                      }))
+                    : [],
+                  addonsTotalTHB: nextAppointment.addons_total_thb || 0,
+                  branchId: nextAppointment.branch_id
+                }
+              : null
+          }
+        />
 
         <ServiceHistoryTable history={historyData} />
       </div>
+      <LoadingOverlay
+        open={isPageLoading}
+        text="กำลังโหลดข้อมูลการจอง..."
+      />
     </AppLayout>
   );
 }
 
 export default MyTreatmentSmoothPage;
+
+// Manual test:
+// 1) /my-treatments/smooth?mock_user_id=U_TEST_001&dev=1
+// 2) ต้องเห็น overlay ระหว่างโหลด และไม่แสดงวันนัดแบบ mock
+// 3) ถ้าไม่มีนัดหมายให้ขึ้น "ยังไม่มีการจอง"

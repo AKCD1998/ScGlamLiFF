@@ -3,8 +3,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import BookingDetailsModal from "./BookingDetailsModal";
 import { getMockUserId, storeMockUserIdFromQuery } from "../utils/mockAuth";
 
-function NextAppointmentCard({ appointment, onEdit }) {
+function NextAppointmentCard({ appointment, status = "idle", onEdit, onRetry }) {
   const navigate = useNavigate();
+  const hasAppointment = Boolean(appointment);
   const location = useLocation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
@@ -27,6 +28,24 @@ function NextAppointmentCard({ appointment, onEdit }) {
     const params = new URLSearchParams(location.search);
     return params.get("dev") === "1";
   }, [location.search]);
+
+  const debugText = useMemo(() => {
+    if (!isDevMode || !appointment?.scheduledAtRaw) {
+      return null;
+    }
+    const raw = appointment.scheduledAtRaw;
+    const iso = new Date(raw).toISOString();
+    const th = new Date(raw).toLocaleString("th-TH", {
+      timeZone: "Asia/Bangkok",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    });
+    return `RAW: ${raw} | ISO: ${iso} | TH: ${th}`;
+  }, [appointment, isDevMode]);
 
   const redeemToken = useMemo(() => {
     if (!appointment) {
@@ -124,25 +143,72 @@ function NextAppointmentCard({ appointment, onEdit }) {
       <div className="next-appointment-card__header">
         นัดหมายครั้งถัดไป
       </div>
+      <p className="next-appointment-card__policy">
+        เปลี่ยนเวลาได้ 1 ครั้งเท่านั้น หากไม่มาตามนัดจะถือว่าใช้สิทธิ์แล้ว
+      </p>
       <div className="next-appointment-card__body">
-        <button type="button" onClick={handleEdit}>
-          แก้ไข
-        </button>
-        <div className="next-appointment-card__details">
-          <p className="next-appointment-card__date">
-            {appointment?.dateText || "ยังไม่มีการจอง"}
-          </p>
-        </div>
-        <div className="next-appointment-card__cta">
-          <p>เปิดข้อมูลที่คุณจองวันนี้ไว้สิ</p>
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            disabled={!appointment}
-          >
-            ดูข้อมูลการจอง
-          </button>
-        </div>
+        {status === "loading" ? (
+          <div className="next-appointment-card__details">
+            <p className="next-appointment-card__date">กำลังโหลดนัดหมาย...</p>
+          </div>
+        ) : status === "error" ? (
+          <>
+            <div className="next-appointment-card__details">
+              <p className="next-appointment-card__date">
+                โหลดนัดหมายไม่สำเร็จ
+              </p>
+            </div>
+            <div className="next-appointment-card__cta">
+              <button type="button" onClick={onRetry || handleEdit}>
+                ลองใหม่
+              </button>
+            </div>
+          </>
+        ) : status === "empty" ? (
+          <>
+            <div className="next-appointment-card__details">
+              <p className="next-appointment-card__date">ยังไม่มีการจอง</p>
+            </div>
+            <div className="next-appointment-card__cta">
+              <button type="button" onClick={handleEdit}>
+                จองเลย
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {hasAppointment ? (
+              <button type="button" onClick={handleEdit}>
+                แก้ไข
+              </button>
+            ) : null}
+            <div className="next-appointment-card__details">
+              <p className="next-appointment-card__date">
+                {appointment?.dateText || "ยังไม่มีการจอง"}
+              </p>
+              {debugText ? (
+                <p className="next-appointment-card__debug">{debugText}</p>
+              ) : null}
+            </div>
+            <div className="next-appointment-card__cta">
+              {hasAppointment ? (
+                <>
+                  <p>เปิดข้อมูลที่คุณจองวันนี้ไว้สิ</p>
+                  <button type="button" onClick={() => setIsModalOpen(true)}>
+                    ดูข้อมูลการจอง
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p>ยังไม่มีการจองสำหรับคอร์สนี้</p>
+                  <button type="button" onClick={handleEdit}>
+                    ไปหน้าจอง
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
       <BookingDetailsModal
         open={isModalOpen}
