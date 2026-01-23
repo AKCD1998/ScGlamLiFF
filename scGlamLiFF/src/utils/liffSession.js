@@ -15,22 +15,33 @@ export const initializeLIFFAndGetUser = async (onStep) => {
 
   await liff.init({ liffId });
 
-  if (typeof window !== "undefined") {
-    const hash = window.location.hash || "";
-    const tokenPattern = /(?:^#\/?access_token=|[&#]access_token=|[&#]id_token=|[&#]context_token=)/i;
-    if (tokenPattern.test(hash)) {
-      const cleanUrl = `${window.location.pathname}${window.location.search}#/`;
-      if (window.history?.replaceState) {
-        window.history.replaceState(null, "", cleanUrl);
-        if (typeof HashChangeEvent !== "undefined") {
-          window.dispatchEvent(new HashChangeEvent("hashchange"));
-        }
-      } else {
-        window.location.hash = "#/";
-      }
-      onStep?.({ step: "hash_cleared" });
+  const sanitizeLiffTokens = (label) => {
+    if (typeof window === "undefined") {
+      return false;
     }
-  }
+    const hash = window.location.hash || "";
+    const search = window.location.search || "";
+    const tokenPattern = /access_token=|id_token=|context_token=/i;
+    const hasTokens = tokenPattern.test(hash) || tokenPattern.test(search);
+    if (!hasTokens) {
+      return false;
+    }
+    const cleanUrl = `${window.location.pathname}${window.location.search}#/`;
+    if (window.history?.replaceState) {
+      window.history.replaceState(null, "", cleanUrl);
+      if (typeof HashChangeEvent !== "undefined") {
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      }
+    } else {
+      window.location.hash = "#/";
+    }
+    onStep?.({ step: "hash_cleared", hashCleared: true, label });
+    return true;
+  };
+
+  sanitizeLiffTokens("after_init");
+  setTimeout(() => sanitizeLiffTokens("after_init_t1"), 200);
+  setTimeout(() => sanitizeLiffTokens("after_init_t2"), 800);
 
   onStep?.({
     step: "init_done",
