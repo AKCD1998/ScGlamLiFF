@@ -16,14 +16,14 @@ const treatmentsDetailMock = [
     ],
     branches: [
       {
-        name: "สาขา Central Rama 9",
-        hours: "Mon-Sun 11:00-20:00",
+        name: "สาขา  วัดช่องลม",
+        hours: "Mon-Sun 08:00-20:00",
         mapEmbedUrl:
           "https://maps.google.com/maps?q=central%20rama%209&t=&z=13&ie=UTF8&iwloc=&output=embed"
       },
       {
-        name: "สาขา Siam Paragon",
-        hours: "Mon-Sun 11:00-20:00",
+        name: "สาขา ดาวอังคาร",
+        hours: "Mon-Sun 08:00-20:00",
         mapEmbedUrl:
           "https://maps.google.com/maps?q=siam%20paragon&t=&z=13&ie=UTF8&iwloc=&output=embed"
       }
