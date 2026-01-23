@@ -68,6 +68,7 @@ function AuthGate({ children }) {
   const { status, mode, error, debug } = useAuth();
   const location = useLocation();
   const [showReadyBanner, setShowReadyBanner] = useState(true);
+  const showDebug = new URLSearchParams(location.search).get("debug") === "1";
   const debugStep = debug?.step || "unknown";
   const readyBannerText = `READY | path: ${location.pathname} | search: ${location.search || ""}`;
 
@@ -159,7 +160,7 @@ function AuthGate({ children }) {
 
   return (
     <>
-      {status === "ready" && showReadyBanner ? (
+      {showDebug && status === "ready" && showReadyBanner ? (
         <div
           style={{
             position: "fixed",
@@ -191,7 +192,7 @@ function AuthGate({ children }) {
           </button>
         </div>
       ) : null}
-      {status === "ready" && !showReadyBanner ? (
+      {showDebug && status === "ready" && !showReadyBanner ? (
         <button
           type="button"
           onClick={() => setShowReadyBanner(true)}
@@ -215,8 +216,8 @@ function AuthGate({ children }) {
       {children}
       <LoadingOverlay open={status === "loading"} text="กำลังเข้าสู่ระบบ..." />
       <DebugOverlay />
-      <AuthStatusPanel />
-      <DebugPanel />
+      {showDebug ? <AuthStatusPanel /> : null}
+      {showDebug ? <DebugPanel /> : null}
     </>
   );
 }
