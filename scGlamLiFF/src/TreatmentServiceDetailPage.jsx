@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import treatmentsDetailMock from "./data/treatmentsDetailMock";
 import CoursePurchaseModal from "./components/CoursePurchaseModal";
 import smoothImage from "./assets/smooth.png";
 import AppLayout from "./components/AppLayout";
-import { getMockUserId, storeMockUserIdFromQuery } from "./utils/mockAuth";
+import { useAuth } from "./context/AuthContext";
 import { apiUrl } from "./utils/apiBase";
 import "./TreatmentServiceDetailPage.css";
 
@@ -32,12 +32,8 @@ function TreatmentServiceDetailPage() {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseError, setPurchaseError] = useState(null);
-  const [mockUserId, setMockUserId] = useState(getMockUserId());
-
-  useEffect(() => {
-    const queryUserId = storeMockUserIdFromQuery();
-    setMockUserId(queryUserId || getMockUserId());
-  }, []);
+  const { user } = useAuth();
+  const lineUserId = user?.lineUserId;
 
   if (!detail) {
     return (
@@ -85,13 +81,17 @@ function TreatmentServiceDetailPage() {
     if (!selectedPackage || isPurchasing) {
       return;
     }
+    if (!lineUserId) {
+      setPurchaseError("ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่");
+      return;
+    }
 
     setIsPurchasing(true);
     setPurchaseError(null);
 
     const sessionsBought = resolveSessionsBought(selectedPackage);
     const payload = {
-      line_user_id: mockUserId || "U_TEST_001",
+      line_user_id: lineUserId,
       treatment_code: slug,
       sessions_bought: sessionsBought,
       price_thb: selectedPackage?.price ?? null
@@ -114,7 +114,7 @@ function TreatmentServiceDetailPage() {
       await requestPurchase(apiUrl("/api/purchases/mock-buy"));
 
       setSelectedPackage(null);
-      navigate(`/my-treatments?mock_user_id=${encodeURIComponent(payload.line_user_id)}`);
+      navigate(`/my-treatments`);
     } catch (error) {
       setPurchaseError(error.message || "Failed to create purchase");
     } finally {

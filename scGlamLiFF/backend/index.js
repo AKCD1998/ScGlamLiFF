@@ -8,6 +8,8 @@ const { Pool } = pg;
 
 const app = express();
 const port = process.env.PORT || 3002;
+const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID;
+const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 
 app.use(cors());
 app.use(express.json());
@@ -166,6 +168,58 @@ const validateSchedule = ({ date, time, nowBangkok }) => {
 
 app.get("/health", (req, res) => {
   res.json({ ok: true });
+});
+
+const verifyLineIdToken = async (idToken) => {
+  if (!LINE_CHANNEL_ID || !LINE_CHANNEL_SECRET) {
+    throw new Error("LINE channel env is missing");
+  }
+
+  const response = await fetch("https://api.line.me/oauth2/v2.1/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      id_token: idToken,
+      client_id: LINE_CHANNEL_ID
+    }).toString()
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const message =
+      payload.error_description || payload.error || "Invalid LINE ID token";
+    throw new Error(message);
+  }
+
+  return response.json();
+};
+
+app.post("/api/liff/session", async (req, res) => {
+  const { idToken } = req.body || {};
+  if (!idToken) {
+    res.status(400).json({ error: "idToken is required" });
+    return;
+  }
+
+  if (!LINE_CHANNEL_ID || !LINE_CHANNEL_SECRET) {
+    res.status(500).json({
+      error: "LINE_CHANNEL_ID or LINE_CHANNEL_SECRET is not configured"
+    });
+    return;
+  }
+
+  try {
+    const payload = await verifyLineIdToken(idToken);
+    res.json({
+      lineUserId: payload.sub,
+      displayName: payload.name || null
+    });
+  } catch (error) {
+    console.error("Failed to verify LINE ID token", error);
+    res.status(401).json({
+      error: error.message || "Invalid LINE ID token"
+    });
+  }
 });
 
 app.get("/api/me/treatments", async (req, res) => {

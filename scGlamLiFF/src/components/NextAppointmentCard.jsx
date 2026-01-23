@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import BookingDetailsModal from "./BookingDetailsModal";
-import { getMockUserId, storeMockUserIdFromQuery } from "../utils/mockAuth";
 import { apiUrl } from "../utils/apiBase";
+import { useAuth } from "../context/AuthContext";
 
 function NextAppointmentCard({ appointment, status = "idle", onEdit, onRetry }) {
   const navigate = useNavigate();
   const hasAppointment = Boolean(appointment);
-  const location = useLocation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
-  const [mockUserId, setMockUserId] = useState(getMockUserId());
+  const { user } = useAuth();
+  const authLineUserId = user?.lineUserId;
 
   const handleEdit = () => {
     if (onEdit) {
@@ -20,15 +20,10 @@ function NextAppointmentCard({ appointment, status = "idle", onEdit, onRetry }) 
     navigate("/my-treatments/smooth/booking");
   };
 
-  useEffect(() => {
-    const queryUserId = storeMockUserIdFromQuery();
-    setMockUserId(queryUserId || getMockUserId());
-  }, [location.search]);
-
   const isDevMode = useMemo(() => {
-    const params = new URLSearchParams(location.search);
+    const params = new URLSearchParams(window.location.search);
     return params.get("dev") === "1";
-  }, [location.search]);
+  }, []);
 
   const debugText = useMemo(() => {
     if (!isDevMode || !appointment?.scheduledAtRaw) {
@@ -52,13 +47,13 @@ function NextAppointmentCard({ appointment, status = "idle", onEdit, onRetry }) 
     if (!appointment) {
       return "";
     }
-    const lineUserId = mockUserId || "U_TEST_001";
+    const lineUserId = authLineUserId || "U_TEST_001";
     const treatmentCode = appointment.treatmentCode || appointment.treatment_code || "smooth";
     const appointmentId =
       appointment.appointment_id || appointment.id || `${treatmentCode}-appointment`;
     const timestamp = Date.now();
     return `SCGLAM|${lineUserId}|${treatmentCode}|${appointmentId}|${timestamp}`;
-  }, [appointment, mockUserId]);
+  }, [appointment, authLineUserId]);
 
   const handleRedeem = async () => {
     if (isRedeeming) {
@@ -116,16 +111,14 @@ function NextAppointmentCard({ appointment, status = "idle", onEdit, onRetry }) 
 
       if (result.remaining_sessions_after === 0) {
         window.alert("คุณใช้บริการคอร์สครบถ้วนแล้ว");
-        navigate(`/my-treatments?mock_user_id=${encodeURIComponent(mockUserId)}&refresh=${Date.now()}`);
+        navigate(`/my-treatments?refresh=${Date.now()}`);
       } else {
         const remainingText =
           result.used_count && result.total_count
             ? `สแกนบริการครั้งที่ ${result.used_count} จากทั้งหมด ${result.total_count}`
             : `สแกนสำเร็จ เหลือ ${result.remaining_sessions_after} ครั้ง`;
         window.alert(remainingText);
-        navigate(
-          `/my-treatments/smooth?mock_user_id=${encodeURIComponent(mockUserId)}&refresh=${Date.now()}`
-        );
+        navigate(`/my-treatments/smooth?refresh=${Date.now()}`);
       }
     } catch (error) {
       window.alert(error.message || "Failed to redeem");

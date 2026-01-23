@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import TreatmentOption from "./TreatmentOption";
 import myTreatmentMock from "./data/myTreatmentMock";
-import { getMockUserId, storeMockUserIdFromQuery } from "./utils/mockAuth";
+import { useAuth } from "./context/AuthContext";
 import { apiUrl } from "./utils/apiBase";
 import "./MyTreatmentsPage.css";
 import smoothImage from "./assets/smooth.png";
@@ -10,15 +10,11 @@ import smoothImage from "./assets/smooth.png";
 function MyTreatmentsPage({ onSelectSmooth }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
-  const [mockUserId, setMockUserId] = useState(getMockUserId());
-
-  useEffect(() => {
-    const queryUserId = storeMockUserIdFromQuery();
-    setMockUserId(queryUserId || getMockUserId());
-  }, [location.search]);
+  const lineUserId = user?.lineUserId;
 
   useEffect(() => {
     let isActive = true;
@@ -35,7 +31,7 @@ function MyTreatmentsPage({ onSelectSmooth }) {
       setIsLoading(true);
       setFetchError(null);
 
-      const encodedUserId = encodeURIComponent(mockUserId);
+      const encodedUserId = encodeURIComponent(lineUserId);
       const requestUrl = apiUrl(
         `/api/me/treatments?line_user_id=${encodedUserId}`
       );
@@ -66,14 +62,14 @@ function MyTreatmentsPage({ onSelectSmooth }) {
       }
     };
 
-    if (mockUserId) {
+    if (lineUserId) {
       loadTreatments();
     }
 
     return () => {
       isActive = false;
     };
-  }, [mockUserId, location.key]);
+  }, [lineUserId, location.key]);
 
   const handleOwnedTreatment = (code) => {
     if (code === "smooth") {

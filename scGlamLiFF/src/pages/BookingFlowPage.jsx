@@ -6,7 +6,7 @@ import AppLayout from "../components/AppLayout";
 import smoothImage from "../assets/smooth.png";
 import BookingDetailsModal from "../components/BookingDetailsModal";
 import LoadingOverlay from "../components/LoadingOverlay";
-import { getMockUserId, storeMockUserIdFromQuery } from "../utils/mockAuth";
+import { useAuth } from "../context/AuthContext";
 import { apiUrl } from "../utils/apiBase";
 import "./BookingFlowPage.css";
 
@@ -119,7 +119,8 @@ function BookingFlowPage() {
   const [confirmError, setConfirmError] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [mockUserId, setMockUserId] = useState(getMockUserId());
+  const { user } = useAuth();
+  const lineUserId = user?.lineUserId;
 
   useEffect(() => {
     let isActive = true;
@@ -294,11 +295,6 @@ function BookingFlowPage() {
   }, [addOnsTotal, selectedBranchLabel, selectedDate, selectedItems, selectedTime]);
 
   useEffect(() => {
-    const queryUserId = storeMockUserIdFromQuery();
-    setMockUserId(queryUserId || getMockUserId());
-  }, [location.search]);
-
-  useEffect(() => {
     if (!selectedTime) {
       return;
     }
@@ -323,12 +319,16 @@ function BookingFlowPage() {
       setSubmitError("กรุณาเลือกวัน เวลา และสาขาให้ครบก่อนยืนยัน");
       return;
     }
+    if (!lineUserId) {
+      setSubmitError("ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่");
+      return;
+    }
 
     setSubmitError("");
     setIsSubmitting(true);
 
     const payload = {
-      line_user_id: mockUserId || "U_TEST_001",
+      line_user_id: lineUserId,
       treatment_code: "smooth",
       branch_id: bookingSummary.branchId,
       date: bookingSummary.dateISO,
@@ -353,7 +353,7 @@ function BookingFlowPage() {
     try {
       await requestCreate(apiUrl("/api/appointments"));
       setShowConfirm(false);
-      navigate(`/my-treatments/smooth?mock_user_id=${encodeURIComponent(payload.line_user_id)}`);
+      navigate(`/my-treatments/smooth`);
     } catch (error) {
       setSubmitError(error.message || "สร้างการจองไม่สำเร็จ");
     } finally {

@@ -6,7 +6,7 @@ import CourseBundleList from "../components/CourseBundleList";
 import NextAppointmentCard from "../components/NextAppointmentCard";
 import ServiceHistoryTable from "../components/ServiceHistoryTable";
 import AppLayout from "../components/AppLayout";
-import { getMockUserId, storeMockUserIdFromQuery } from "../utils/mockAuth";
+import { useAuth } from "../context/AuthContext";
 import { apiUrl } from "../utils/apiBase";
 import LoadingOverlay from "../components/LoadingOverlay";
 import formatBangkokDateTime from "../utils/formatBangkokDateTime";
@@ -18,7 +18,6 @@ function MyTreatmentSmoothPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const [noSmoothCourse, setNoSmoothCourse] = useState(false);
-  const [mockUserId, setMockUserId] = useState(getMockUserId());
   const [historyData, setHistoryData] = useState({ purchaseRows: [], usageRows: [] });
   const [historyError, setHistoryError] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -29,11 +28,10 @@ function MyTreatmentSmoothPage() {
   const [appointmentStatus, setAppointmentStatus] = useState("idle");
   const [appointmentError, setAppointmentError] = useState(null);
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0);
+  const { user } = useAuth();
+  const lineUserId = user?.lineUserId;
+  const displayName = user?.displayName;
 
-  useEffect(() => {
-    const queryUserId = storeMockUserIdFromQuery();
-    setMockUserId(queryUserId || getMockUserId());
-  }, [location.search]);
 
   useEffect(() => {
     let isActive = true;
@@ -51,7 +49,7 @@ function MyTreatmentSmoothPage() {
       setFetchError(null);
       setNoSmoothCourse(false);
 
-      const encodedUserId = encodeURIComponent(mockUserId);
+      const encodedUserId = encodeURIComponent(lineUserId);
       const requestUrl = apiUrl(
         `/api/me/treatments?line_user_id=${encodedUserId}`
       );
@@ -95,14 +93,14 @@ function MyTreatmentSmoothPage() {
       }
     };
 
-    if (mockUserId) {
+    if (lineUserId) {
       loadTreatments();
     }
 
     return () => {
       isActive = false;
     };
-  }, [mockUserId, location.key]);
+  }, [lineUserId, location.key]);
 
   useEffect(() => {
     let isActive = true;
@@ -118,7 +116,7 @@ function MyTreatmentSmoothPage() {
     const loadHistory = async () => {
       setHistoryLoading(true);
       setHistoryError(null);
-      const encodedUserId = encodeURIComponent(mockUserId);
+      const encodedUserId = encodeURIComponent(lineUserId);
       const requestUrl = apiUrl(
         `/api/me/history?line_user_id=${encodedUserId}&treatment_code=smooth`
       );
@@ -147,14 +145,14 @@ function MyTreatmentSmoothPage() {
       }
     };
 
-    if (mockUserId) {
+    if (lineUserId) {
       loadHistory();
     }
 
     return () => {
       isActive = false;
     };
-  }, [mockUserId, location.key]);
+  }, [lineUserId, location.key]);
 
   useEffect(() => {
     let isActive = true;
@@ -170,7 +168,7 @@ function MyTreatmentSmoothPage() {
     const loadCourses = async () => {
       setBundleLoading(true);
       setBundleError(null);
-      const encodedUserId = encodeURIComponent(mockUserId);
+      const encodedUserId = encodeURIComponent(lineUserId);
       const requestUrl = apiUrl(`/api/my-courses?lineUserId=${encodedUserId}`);
 
       try {
@@ -200,14 +198,14 @@ function MyTreatmentSmoothPage() {
       }
     };
 
-    if (mockUserId) {
+    if (lineUserId) {
       loadCourses();
     }
 
     return () => {
       isActive = false;
     };
-  }, [mockUserId, location.key]);
+  }, [lineUserId, location.key]);
 
   useEffect(() => {
     let isActive = true;
@@ -223,7 +221,7 @@ function MyTreatmentSmoothPage() {
     const loadNextAppointment = async () => {
       setAppointmentStatus("loading");
       setAppointmentError(null);
-      const encodedUserId = encodeURIComponent(mockUserId);
+      const encodedUserId = encodeURIComponent(lineUserId);
       const requestUrl = apiUrl(
         `/api/appointments/next?line_user_id=${encodedUserId}&treatment_code=smooth`
       );
@@ -252,14 +250,14 @@ function MyTreatmentSmoothPage() {
       }
     };
 
-    if (mockUserId) {
+    if (lineUserId) {
       loadNextAppointment();
     }
 
     return () => {
       isActive = false;
     };
-  }, [mockUserId, location.key, appointmentRefreshKey]);
+  }, [lineUserId, location.key, appointmentRefreshKey]);
 
   const bundleData = useMemo(
     () =>
@@ -277,7 +275,8 @@ function MyTreatmentSmoothPage() {
 
   const profileData = {
     ...myTreatmentMock.profile,
-    id: mockUserId || myTreatmentMock.profile.id
+    name: displayName || myTreatmentMock.profile.name,
+    id: lineUserId || myTreatmentMock.profile.id
   };
 
   const isPageLoading =

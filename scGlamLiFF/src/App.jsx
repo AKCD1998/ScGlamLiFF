@@ -1,5 +1,3 @@
-import { useEffect } from "react";
-import liff from "@line/liff";
 import { Route, Routes, useNavigate } from "react-router-dom";
 import "./App.css";
 import MyTreatmentsPage from "./MyTreatmentsPage";
@@ -11,6 +9,8 @@ import BookingFlowPage from "./pages/BookingFlowPage";
 import StaffScanPage from "./pages/StaffScanPage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsPage from "./pages/TermsPage";
+import LoadingOverlay from "./components/LoadingOverlay";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
 function ActionButton({ title, subtitle, onClick }) {
   return (
@@ -49,21 +49,43 @@ function HomePage() {
   );
 }
 
-function App() {
-  useEffect(() => {
-    liff
-      .init({
-        liffId: import.meta.env.VITE_LIFF_ID
-      })
-      .then(() => {
-        console.log("LIFF init succeeded.");
-      })
-      .catch((e) => {
-        console.log("LIFF init failed.");
-        console.error(e);
-      });
-  }, []);
+function AuthGate({ children }) {
+  const { status, mode, error } = useAuth();
 
+  if (status === "blocked" && mode === "real") {
+    return (
+      <AppLayout breadcrumbs={[{ label: "Home" }]}>
+        <div className="page">
+          <p>กรุณาเปิดหน้านี้ผ่าน LINE</p>
+          <p>หากต้องการทดสอบบนเบราว์เซอร์ ให้เปิดโหมด mock</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <AppLayout breadcrumbs={[{ label: "Home" }]}>
+        <div className="page">
+          <p>ไม่สามารถเข้าสู่ระบบได้</p>
+          <p>{error?.message || "โปรดลองอีกครั้งภายหลัง"}</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <>
+      {children}
+      <LoadingOverlay
+        open={status === "loading"}
+        text="กำลังเข้าสู่ระบบ..."
+      />
+    </>
+  );
+}
+
+function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
@@ -82,6 +104,16 @@ function App() {
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/terms" element={<TermsPage />} />
     </Routes>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AuthGate>
+        <AppRoutes />
+      </AuthGate>
+    </AuthProvider>
   );
 }
 
