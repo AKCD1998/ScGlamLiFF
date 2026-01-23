@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AppLayout from "../components/AppLayout";
+import { apiUrl } from "../utils/apiBase";
 import "./StaffScanPage.css";
 
 function StaffScanPage() {
@@ -27,12 +28,7 @@ function StaffScanPage() {
         return response.json();
       };
 
-      let result;
-      try {
-        result = await requestRedeem("/api/appointments/redeem");
-      } catch (error) {
-        result = await requestRedeem("http://localhost:3002/api/appointments/redeem");
-      }
+      const result = await requestRedeem(apiUrl("/api/appointments/redeem"));
 
       const message =
         result.used_count && result.total_count

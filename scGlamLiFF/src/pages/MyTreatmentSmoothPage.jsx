@@ -7,6 +7,7 @@ import NextAppointmentCard from "../components/NextAppointmentCard";
 import ServiceHistoryTable from "../components/ServiceHistoryTable";
 import AppLayout from "../components/AppLayout";
 import { getMockUserId, storeMockUserIdFromQuery } from "../utils/mockAuth";
+import { apiUrl } from "../utils/apiBase";
 import LoadingOverlay from "../components/LoadingOverlay";
 import formatBangkokDateTime from "../utils/formatBangkokDateTime";
 import "./MyTreatmentSmoothPage.css";
@@ -51,16 +52,12 @@ function MyTreatmentSmoothPage() {
       setNoSmoothCourse(false);
 
       const encodedUserId = encodeURIComponent(mockUserId);
-      const proxyUrl = `/api/me/treatments?line_user_id=${encodedUserId}`;
-      const fallbackUrl = `http://localhost:3002/api/me/treatments?line_user_id=${encodedUserId}`;
+      const requestUrl = apiUrl(
+        `/api/me/treatments?line_user_id=${encodedUserId}`
+      );
 
       try {
-        let data;
-        try {
-          data = await fetchTreatments(proxyUrl);
-        } catch (error) {
-          data = await fetchTreatments(fallbackUrl);
-        }
+        const data = await fetchTreatments(requestUrl);
 
         if (!isActive) {
           return;
@@ -122,16 +119,12 @@ function MyTreatmentSmoothPage() {
       setHistoryLoading(true);
       setHistoryError(null);
       const encodedUserId = encodeURIComponent(mockUserId);
-      const proxyUrl = `/api/me/history?line_user_id=${encodedUserId}&treatment_code=smooth`;
-      const fallbackUrl = `http://localhost:3002/api/me/history?line_user_id=${encodedUserId}&treatment_code=smooth`;
+      const requestUrl = apiUrl(
+        `/api/me/history?line_user_id=${encodedUserId}&treatment_code=smooth`
+      );
 
       try {
-        let data;
-        try {
-          data = await fetchHistory(proxyUrl);
-        } catch (error) {
-          data = await fetchHistory(fallbackUrl);
-        }
+        const data = await fetchHistory(requestUrl);
 
         if (!isActive) {
           return;
@@ -178,16 +171,10 @@ function MyTreatmentSmoothPage() {
       setBundleLoading(true);
       setBundleError(null);
       const encodedUserId = encodeURIComponent(mockUserId);
-      const proxyUrl = `/api/my-courses?lineUserId=${encodedUserId}`;
-      const fallbackUrl = `http://localhost:3002/api/my-courses?lineUserId=${encodedUserId}`;
+      const requestUrl = apiUrl(`/api/my-courses?lineUserId=${encodedUserId}`);
 
       try {
-        let data;
-        try {
-          data = await fetchCourses(proxyUrl);
-        } catch (error) {
-          data = await fetchCourses(fallbackUrl);
-        }
+        const data = await fetchCourses(requestUrl);
 
         if (!isActive) {
           return;
@@ -237,16 +224,12 @@ function MyTreatmentSmoothPage() {
       setAppointmentStatus("loading");
       setAppointmentError(null);
       const encodedUserId = encodeURIComponent(mockUserId);
-      const proxyUrl = `/api/appointments/next?line_user_id=${encodedUserId}&treatment_code=smooth`;
-      const fallbackUrl = `http://localhost:3002/api/appointments/next?line_user_id=${encodedUserId}&treatment_code=smooth`;
+      const requestUrl = apiUrl(
+        `/api/appointments/next?line_user_id=${encodedUserId}&treatment_code=smooth`
+      );
 
       try {
-        let data;
-        try {
-          data = await fetchNext(proxyUrl);
-        } catch (error) {
-          data = await fetchNext(fallbackUrl);
-        }
+        const data = await fetchNext(requestUrl);
 
         if (!isActive) {
           return;

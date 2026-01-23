@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import TreatmentOption from "./TreatmentOption";
 import myTreatmentMock from "./data/myTreatmentMock";
 import { getMockUserId, storeMockUserIdFromQuery } from "./utils/mockAuth";
+import { apiUrl } from "./utils/apiBase";
 import "./MyTreatmentsPage.css";
 import smoothImage from "./assets/smooth.png";
 
@@ -35,16 +36,12 @@ function MyTreatmentsPage({ onSelectSmooth }) {
       setFetchError(null);
 
       const encodedUserId = encodeURIComponent(mockUserId);
-      const proxyUrl = `/api/me/treatments?line_user_id=${encodedUserId}`;
-      const fallbackUrl = `http://localhost:3002/api/me/treatments?line_user_id=${encodedUserId}`;
+      const requestUrl = apiUrl(
+        `/api/me/treatments?line_user_id=${encodedUserId}`
+      );
 
       try {
-        let data;
-        try {
-          data = await fetchTreatments(proxyUrl);
-        } catch (error) {
-          data = await fetchTreatments(fallbackUrl);
-        }
+        const data = await fetchTreatments(requestUrl);
 
         if (!isActive) {
           return;

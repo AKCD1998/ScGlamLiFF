@@ -7,6 +7,7 @@ import smoothImage from "../assets/smooth.png";
 import BookingDetailsModal from "../components/BookingDetailsModal";
 import LoadingOverlay from "../components/LoadingOverlay";
 import { getMockUserId, storeMockUserIdFromQuery } from "../utils/mockAuth";
+import { apiUrl } from "../utils/apiBase";
 import "./BookingFlowPage.css";
 
 const branches = [
@@ -136,12 +137,7 @@ function BookingFlowPage() {
       setToppingsError(null);
 
       try {
-        let data;
-        try {
-          data = await fetchToppings("/api/toppings?active=true");
-        } catch (error) {
-          data = await fetchToppings("http://localhost:3002/api/toppings?active=true");
-        }
+        const data = await fetchToppings(apiUrl("/api/toppings?active=true"));
 
         if (!isActive) {
           return;
@@ -355,11 +351,7 @@ function BookingFlowPage() {
     };
 
     try {
-      try {
-        await requestCreate("/api/appointments");
-      } catch (error) {
-        await requestCreate("http://localhost:3002/api/appointments");
-      }
+      await requestCreate(apiUrl("/api/appointments"));
       setShowConfirm(false);
       navigate(`/my-treatments/smooth?mock_user_id=${encodeURIComponent(payload.line_user_id)}`);
     } catch (error) {

@@ -5,6 +5,7 @@ import CoursePurchaseModal from "./components/CoursePurchaseModal";
 import smoothImage from "./assets/smooth.png";
 import AppLayout from "./components/AppLayout";
 import { getMockUserId, storeMockUserIdFromQuery } from "./utils/mockAuth";
+import { apiUrl } from "./utils/apiBase";
 import "./TreatmentServiceDetailPage.css";
 
 const tabs = [
@@ -110,11 +111,7 @@ function TreatmentServiceDetailPage() {
         return response.json().catch(() => ({}));
       };
 
-      try {
-        await requestPurchase("/api/purchases/mock-buy");
-      } catch (error) {
-        await requestPurchase("http://localhost:3002/api/purchases/mock-buy");
-      }
+      await requestPurchase(apiUrl("/api/purchases/mock-buy"));
 
       setSelectedPackage(null);
       navigate(`/my-treatments?mock_user_id=${encodeURIComponent(payload.line_user_id)}`);

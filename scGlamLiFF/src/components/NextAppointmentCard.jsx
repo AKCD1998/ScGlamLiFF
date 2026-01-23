@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import BookingDetailsModal from "./BookingDetailsModal";
 import { getMockUserId, storeMockUserIdFromQuery } from "../utils/mockAuth";
+import { apiUrl } from "../utils/apiBase";
 
 function NextAppointmentCard({ appointment, status = "idle", onEdit, onRetry }) {
   const navigate = useNavigate();
@@ -109,12 +110,7 @@ function NextAppointmentCard({ appointment, status = "idle", onEdit, onRetry }) 
         return response.json();
       };
 
-      let result;
-      try {
-        result = await requestRedeem("/api/appointments/redeem");
-      } catch (error) {
-        result = await requestRedeem("http://localhost:3002/api/appointments/redeem");
-      }
+      const result = await requestRedeem(apiUrl("/api/appointments/redeem"));
 
       setIsModalOpen(false);
 
