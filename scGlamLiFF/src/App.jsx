@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Route, Routes, useNavigate } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import "./App.css";
 import MyTreatmentsPage from "./MyTreatmentsPage";
 import TopPicksTreatmentsPage from "./TopPicksTreatmentsPage";
@@ -54,9 +54,26 @@ function HomePage() {
   );
 }
 
+function NotFoundPage() {
+  const location = useLocation();
+  return (
+    <AppLayout breadcrumbs={[{ label: "Home" }]}>
+      <div className="page">
+        <p>ไม่พบหน้านี้</p>
+        <p>
+          path: {location.pathname}
+          {location.search ? `?${location.search.replace(/^\?/, "")}` : ""}
+        </p>
+      </div>
+    </AppLayout>
+  );
+}
+
 function AuthGate({ children }) {
   const { status, mode, error, debug } = useAuth();
+  const location = useLocation();
   const debugStep = debug?.step || "unknown";
+  const readyBannerText = `READY OK path=${location.pathname} search=${location.search || ""}`;
 
   const debugPayload = {
     status,
@@ -140,6 +157,24 @@ function AuthGate({ children }) {
 
   return (
     <>
+      {status === "ready" ? (
+        <div
+          style={{
+            position: "fixed",
+            top: 72,
+            left: 0,
+            right: 0,
+            zIndex: 9998,
+            background: "rgba(255, 243, 176, 0.95)",
+            color: "#1f1f1f",
+            fontSize: 12,
+            padding: "6px 10px",
+            textAlign: "center"
+          }}
+        >
+          {readyBannerText}
+        </div>
+      ) : null}
       {children}
       <LoadingOverlay open={status === "loading"} text="กำลังเข้าสู่ระบบ..." />
       <DebugOverlay />
@@ -167,6 +202,7 @@ function AppRoutes() {
       <Route path="/staff/scan" element={<StaffScanPage />} />
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/terms" element={<TermsPage />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
