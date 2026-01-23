@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import "./App.css";
 import MyTreatmentsPage from "./MyTreatmentsPage";
@@ -57,23 +57,25 @@ function HomePage() {
 function NotFoundPage() {
   const location = useLocation();
   return (
-    <AppLayout breadcrumbs={[{ label: "Home" }]}>
-      <div className="page">
-        <p>ไม่พบหน้านี้</p>
-        <p>
-          path: {location.pathname}
-          {location.search ? `?${location.search.replace(/^\?/, "")}` : ""}
-        </p>
-      </div>
-    </AppLayout>
+    <div style={{ padding: 16 }}>
+      NOT FOUND: {location.pathname}
+      {location.search ? `?${location.search.replace(/^\?/, "")}` : ""}
+    </div>
   );
 }
 
 function AuthGate({ children }) {
   const { status, mode, error, debug } = useAuth();
   const location = useLocation();
+  const [showReadyBanner, setShowReadyBanner] = useState(true);
   const debugStep = debug?.step || "unknown";
-  const readyBannerText = `READY OK path=${location.pathname} search=${location.search || ""}`;
+  const readyBannerText = `READY | path: ${location.pathname} | search: ${location.search || ""}`;
+
+  useEffect(() => {
+    if (status === "ready") {
+      setShowReadyBanner(true);
+    }
+  }, [status]);
 
   const debugPayload = {
     status,
@@ -157,23 +159,58 @@ function AuthGate({ children }) {
 
   return (
     <>
-      {status === "ready" ? (
+      {status === "ready" && showReadyBanner ? (
         <div
           style={{
             position: "fixed",
-            top: 72,
-            left: 0,
-            right: 0,
+            bottom: 12,
+            right: 12,
             zIndex: 9998,
             background: "rgba(255, 243, 176, 0.95)",
             color: "#1f1f1f",
             fontSize: 12,
-            padding: "6px 10px",
-            textAlign: "center"
+            padding: "8px 12px",
+            borderRadius: 12,
+            boxShadow: "0 10px 20px rgba(0,0,0,0.15)"
           }}
         >
-          {readyBannerText}
+          <div style={{ marginBottom: 6 }}>{readyBannerText}</div>
+          <button
+            type="button"
+            onClick={() => setShowReadyBanner(false)}
+            style={{
+              fontSize: 12,
+              padding: "4px 10px",
+              borderRadius: 999,
+              border: "1px solid rgba(0,0,0,0.2)",
+              background: "#fff",
+              cursor: "pointer"
+            }}
+          >
+            Hide banner
+          </button>
         </div>
+      ) : null}
+      {status === "ready" && !showReadyBanner ? (
+        <button
+          type="button"
+          onClick={() => setShowReadyBanner(true)}
+          style={{
+            position: "fixed",
+            bottom: 12,
+            right: 12,
+            zIndex: 9998,
+            background: "rgba(0,0,0,0.7)",
+            color: "#fff",
+            fontSize: 12,
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "none",
+            cursor: "pointer"
+          }}
+        >
+          Show READY
+        </button>
       ) : null}
       {children}
       <LoadingOverlay open={status === "loading"} text="กำลังเข้าสู่ระบบ..." />
