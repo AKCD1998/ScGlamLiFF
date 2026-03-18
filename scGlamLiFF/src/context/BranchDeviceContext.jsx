@@ -463,7 +463,11 @@ const getRegisterErrorMessage = (error) => {
     const reasonCode = trimText(error.reason || error.payload?.reason);
 
     if (reasonCode === "missing_staff_auth") {
-      return "ยังไม่ได้เข้าสู่ระบบพนักงาน ไม่สามารถลงทะเบียนอุปกรณ์ได้";
+      return "ไม่พบ staff cookie และยังไม่ได้ส่งชื่อผู้ใช้/รหัสผ่านพนักงานสำหรับลงทะเบียนอุปกรณ์";
+    }
+
+    if (reasonCode === "invalid_staff_credentials") {
+      return "ชื่อผู้ใช้หรือรหัสผ่านพนักงานไม่ถูกต้อง";
     }
 
     if (reasonCode === "invalid_token") {
@@ -490,7 +494,7 @@ const getRegisterErrorMessage = (error) => {
 
 const getStaffLoginErrorMessage = (error, { confirmedSession = false } = {}) => {
   if (confirmedSession) {
-    return "เข้าสู่ระบบแล้ว แต่ LIFF session นี้ยังไม่พบ cookie พนักงาน";
+    return "เข้าสู่ระบบแล้ว แต่ LIFF session นี้ยังไม่พบ cookie พนักงาน ระบบจะใช้ชื่อผู้ใช้/รหัสผ่านนี้เป็น fallback ตอนลงทะเบียน";
   }
 
   if (error instanceof BranchDeviceStaffAuthApiError) {
@@ -707,7 +711,12 @@ export function BranchDeviceProvider({ children }) {
     }
   };
 
-  const registerDevice = async ({ branchId, deviceLabel }) => {
+  const registerDevice = async ({
+    branchId,
+    deviceLabel,
+    staffUsername = "",
+    staffPassword = ""
+  }) => {
     setState((current) => ({
       ...current,
       submitStatus: "submitting",
@@ -715,9 +724,26 @@ export function BranchDeviceProvider({ children }) {
     }));
 
     try {
+      const normalizedStaffUsername = trimText(staffUsername);
+      const providedStaffPassword =
+        typeof staffPassword === "string" ? staffPassword : "";
+      const authPath =
+        state.staffSessionStatus === "authenticated"
+          ? "cookie"
+          : normalizedStaffUsername && providedStaffPassword
+            ? "explicit_credentials"
+            : "cookie";
+
       await createBranchDeviceRegistration({
         branch_id: branchId,
         device_label: deviceLabel,
+        ...(authPath === "explicit_credentials"
+          ? {
+              staff_username: normalizedStaffUsername,
+              staff_password: providedStaffPassword
+            }
+          : {}),
+        authPath,
         onEvent: handleRegisterEvent
       });
 

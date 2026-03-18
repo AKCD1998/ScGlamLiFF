@@ -131,6 +131,7 @@ function BranchDeviceRegistrationForm() {
   }, [branchId]);
 
   const isStaffAuthenticated = staffSessionStatus === "authenticated";
+  const hasExplicitStaffCredentials = Boolean(username.trim() && password);
   const isLoggingIn = staffLoginStatus === "logging_in";
   const loginDisabled =
     isLoggingIn ||
@@ -141,7 +142,7 @@ function BranchDeviceRegistrationForm() {
     !branchId ||
     submitStatus === "submitting" ||
     isLoggingIn ||
-    !isStaffAuthenticated;
+    (!isStaffAuthenticated && !hasExplicitStaffCredentials);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -149,7 +150,9 @@ function BranchDeviceRegistrationForm() {
     try {
       await registerDevice({
         branchId,
-        deviceLabel
+        deviceLabel,
+        staffUsername: username,
+        staffPassword: password
       });
     } catch {
       // Error state is surfaced through context for the registration panel.
@@ -257,7 +260,7 @@ function BranchDeviceRegistrationForm() {
 
         {staffSessionStatus === "missing_staff_auth" ? (
           <p style={{ margin: 0, color: "#9f2323" }}>
-            ยังไม่ได้เข้าสู่ระบบพนักงาน ไม่สามารถลงทะเบียนอุปกรณ์ได้
+            LIFF session นี้ยังไม่พบ staff cookie แต่ยังลงทะเบียนได้ หากกรอกชื่อผู้ใช้และรหัสผ่านพนักงานด้านล่าง
           </p>
         ) : null}
 
@@ -280,6 +283,12 @@ function BranchDeviceRegistrationForm() {
         {staffLoginStatus === "login_success" && isStaffAuthenticated ? (
           <p style={{ margin: 0, color: "#356f37" }}>
             เข้าสู่ระบบพนักงานสำเร็จ ใช้ session นี้ลงทะเบียนอุปกรณ์ได้ทันที
+          </p>
+        ) : null}
+
+        {!isStaffAuthenticated && hasExplicitStaffCredentials ? (
+          <p style={{ margin: 0, color: "#7a5136" }}>
+            หาก LIFF session ไม่มี staff cookie ระบบจะใช้ชื่อผู้ใช้และรหัสผ่านนี้เป็น fallback ตอนลงทะเบียนอุปกรณ์
           </p>
         ) : null}
       </div>

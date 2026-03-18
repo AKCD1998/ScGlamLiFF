@@ -28,6 +28,22 @@ const parseJsonSafely = async (response) => {
 
 const trimText = (value) => (typeof value === "string" ? value.trim() : "");
 
+const logRegistrationAuthPath = ({
+  authPath,
+  branchId,
+  hasDeviceLabel,
+  hasStaffUsername,
+  hasStaffPassword
+}) => {
+  console.info("[LIFFGuardFrontend] branch-device registration auth path", {
+    authPath,
+    branchId: trimText(branchId) || null,
+    hasDeviceLabel: Boolean(hasDeviceLabel),
+    hasStaffUsername: Boolean(hasStaffUsername),
+    hasStaffPassword: Boolean(hasStaffPassword)
+  });
+};
+
 const normalizeLookupPayload = (payload) => ({
   ...(payload || {}),
   ok:
@@ -274,6 +290,22 @@ export const getMyBranchDeviceRegistration = async ({ onEvent } = {}) =>
 export const createBranchDeviceRegistration = async (payload = {}) => {
   const { onEvent } = payload;
   const { headers, liffAppId } = await getLiffIdentityRequest({ onEvent });
+  const branchId = trimText(payload?.branch_id);
+  const deviceLabel = trimText(payload?.device_label);
+  const staffUsername = trimText(payload?.staff_username);
+  const staffPassword =
+    typeof payload?.staff_password === "string" ? payload.staff_password : "";
+  const authPath =
+    trimText(payload?.authPath) ||
+    (staffUsername && staffPassword ? "explicit_credentials" : "cookie");
+
+  logRegistrationAuthPath({
+    authPath,
+    branchId,
+    hasDeviceLabel: Boolean(deviceLabel),
+    hasStaffUsername: Boolean(staffUsername),
+    hasStaffPassword: Boolean(staffPassword)
+  });
 
   return requestJson("/api/branch-device-registrations", {
     method: "POST",
@@ -282,10 +314,12 @@ export const createBranchDeviceRegistration = async (payload = {}) => {
     operation: "register",
     normalizePayload: normalizeMutationPayload,
     body: {
-      branch_id: trimText(payload?.branch_id),
-      ...(trimText(payload?.device_label)
-        ? { device_label: trimText(payload.device_label) }
+      branch_id: branchId,
+      ...(deviceLabel
+        ? { device_label: deviceLabel }
         : {}),
+      ...(staffUsername ? { staff_username: staffUsername } : {}),
+      ...(staffPassword ? { staff_password: staffPassword } : {}),
       ...(liffAppId ? { liff_app_id: liffAppId } : {})
     }
   });

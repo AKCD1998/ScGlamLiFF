@@ -134,6 +134,43 @@ describe("branchDeviceRegistrationService", () => {
     });
   });
 
+  it("posts explicit staff fallback credentials when provided for registration", async () => {
+    getLiffIdentityTokensMock.mockResolvedValue({
+      idToken: "line-id-token",
+      accessToken: "line-access-token",
+      liffAppId: "1650000000-test"
+    });
+    fetchMock.mockResolvedValue(
+      createResponse({
+        ok: true,
+        status: 201,
+        payload: {
+          ok: true,
+          action: "created",
+          registration: { id: "registration-uuid" }
+        }
+      })
+    );
+
+    await createBranchDeviceRegistration({
+      branch_id: "branch-003",
+      device_label: "Auu003",
+      staff_username: " staff003 ",
+      staff_password: "password-003",
+      authPath: "explicit_credentials"
+    });
+
+    const [, options] = fetchMock.mock.calls[0];
+
+    expect(JSON.parse(options.body)).toEqual({
+      branch_id: "branch-003",
+      device_label: "Auu003",
+      staff_username: "staff003",
+      staff_password: "password-003",
+      liff_app_id: "1650000000-test"
+    });
+  });
+
   it("normalizes the canonical GET /me response shape from backend reason fields", async () => {
     getLiffIdentityTokensMock.mockResolvedValue({
       idToken: "line-id-token",

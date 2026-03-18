@@ -133,7 +133,7 @@ describe("BranchDeviceStartupGate", () => {
     expect(screen.getByText("เข้าสู่ระบบพนักงานใน LIFF นี้")).toBeTruthy();
     expect(
       await screen.findByText(
-        "ยังไม่ได้เข้าสู่ระบบพนักงาน ไม่สามารถลงทะเบียนอุปกรณ์ได้"
+        "LIFF session นี้ยังไม่พบ staff cookie แต่ยังลงทะเบียนได้ หากกรอกชื่อผู้ใช้และรหัสผ่านพนักงานด้านล่าง"
       )
     ).toBeTruthy();
     expect(
@@ -356,6 +356,73 @@ describe("BranchDeviceStartupGate", () => {
       expect(createBranchDeviceRegistrationMock).toHaveBeenCalledWith(
         expect.objectContaining({
           branch_id: "branch-003",
+          onEvent: expect.any(Function)
+        })
+      )
+    );
+    expect(await screen.findByTestId("guard-ready")).toBeTruthy();
+  });
+
+  it("allows registration submit without cookie when explicit staff credentials are entered", async () => {
+    getMyBranchDeviceRegistrationMock
+      .mockResolvedValueOnce({
+        ok: true,
+        registered: false,
+        active: false,
+        line_identity: {
+          line_user_id: "U123",
+          display_name: "Front Desk Phone"
+        }
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        registered: true,
+        active: true,
+        branch_id: "branch-003",
+        registration: {
+          id: "registration-uuid",
+          branch_id: "branch-003",
+          status: "active"
+        }
+      });
+    createBranchDeviceRegistrationMock.mockResolvedValue({
+      ok: true,
+      created: true,
+      active: true
+    });
+
+    renderGuard();
+
+    expect(await screen.findByText("ต้องลงทะเบียนอุปกรณ์")).toBeTruthy();
+
+    const registerButton = screen.getByRole("button", {
+      name: "ลงทะเบียนอุปกรณ์"
+    });
+    expect(registerButton.disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("ชื่อผู้ใช้พนักงาน"), {
+      target: { value: "staff003" }
+    });
+    fireEvent.change(screen.getByLabelText("รหัสผ่านพนักงาน"), {
+      target: { value: "password-003" }
+    });
+
+    expect(registerButton.disabled).toBe(false);
+    expect(
+      screen.getByText(
+        "หาก LIFF session ไม่มี staff cookie ระบบจะใช้ชื่อผู้ใช้และรหัสผ่านนี้เป็น fallback ตอนลงทะเบียนอุปกรณ์"
+      )
+    ).toBeTruthy();
+
+    fireEvent.click(registerButton);
+
+    await waitFor(() =>
+      expect(createBranchDeviceRegistrationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch_id: "branch-003",
+          staff_username: "staff003",
+          staff_password: "password-003",
+          authPath: "explicit_credentials",
           onEvent: expect.any(Function)
         })
       )

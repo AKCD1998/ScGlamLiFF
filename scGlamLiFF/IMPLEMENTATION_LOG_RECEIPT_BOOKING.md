@@ -580,3 +580,17 @@
 - The registration UI is intentionally minimal and currently lives only in the startup guard; there is no separate admin/staff management screen in this pass.
 - Existing staff auth remains a prerequisite for `POST /api/branch-device-registrations`; this pass does not change login/session/cookie deployment behavior.
 - Branch enforcement is strongest in `BookingFlowPage.jsx`; some other pages only prefill branch context rather than hard-lock every possible branch edit path.
+
+## Update 2026-03-18T15:45:00+07:00
+
+### LIFF device-registration troubleshooting reference
+- Added `LIFF_DEVICE_REGISTRATION_BREADCRUMBS.md` as the dedicated incident/troubleshooting log for the LIFF startup guard and branch-device registration journey.
+- That file is now the first reference to read when any of these break again:
+  - wrong production API base URL
+  - stale LIFF bundle still calling legacy auth bootstrap
+  - backend `/api/branch-device-registrations/me` 500s
+  - missing production migration for `branch_device_registrations`
+  - uncertainty about canonical branch value for branch 003
+  - staff cookie persistence failure inside LINE WebView
+  - the current pragmatic decision to move registration POST toward a route-scoped non-cookie fallback instead of a wider auth rewrite
+- This was split into its own document because the debugging path crossed both frontend and backend repos, production env/config, Render logs, GitHub Pages deploy config, and DB verification steps.
