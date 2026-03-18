@@ -35,6 +35,18 @@ function BranchDeviceGuardDebugPanel({ debug, status, reasonCode }) {
       lastRequestUrl: debug?.lastRequestUrl ?? null,
       lastResponseStatus: debug?.lastResponseStatus ?? null,
       lastResponseBody: debug?.lastResponseBody ?? null,
+      lastRegisterStarted: debug?.lastRegisterStarted ?? null,
+      lastRegisterUrl: debug?.lastRegisterUrl ?? null,
+      lastRegisterStatus: debug?.lastRegisterStatus ?? null,
+      lastRegisterResponse: debug?.lastRegisterResponse ?? null,
+      staffSessionStarted: debug?.staffSessionStarted ?? null,
+      lastStaffSessionUrl: debug?.lastStaffSessionUrl ?? null,
+      lastStaffSessionStatus: debug?.lastStaffSessionStatus ?? null,
+      lastStaffSessionResponse: debug?.lastStaffSessionResponse ?? null,
+      staffLoginStarted: debug?.staffLoginStarted ?? null,
+      lastStaffLoginUrl: debug?.lastStaffLoginUrl ?? null,
+      lastStaffLoginStatus: debug?.lastStaffLoginStatus ?? null,
+      lastStaffLoginResponse: debug?.lastStaffLoginResponse ?? null,
       lastReason: debug?.lastReason ?? null,
       lastGuardState: status,
       lastReasonCode: reasonCode
@@ -96,15 +108,40 @@ function BranchDevicePanel({
 }
 
 function BranchDeviceRegistrationForm() {
-  const { submitStatus, submitError, lineIdentity, registerDevice } = useBranchDevice();
+  const {
+    lineIdentity,
+    loginStaff,
+    registerDevice,
+    staffLoginError,
+    staffLoginStatus,
+    staffSessionStatus,
+    staffUser,
+    submitError,
+    submitStatus
+  } = useBranchDevice();
   const [branchId, setBranchId] = useState(DEFAULT_BOOKING_BRANCH_ID);
   const [deviceLabel, setDeviceLabel] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (!branchId) {
       setBranchId(DEFAULT_BOOKING_BRANCH_ID);
     }
   }, [branchId]);
+
+  const isStaffAuthenticated = staffSessionStatus === "authenticated";
+  const isLoggingIn = staffLoginStatus === "logging_in";
+  const loginDisabled =
+    isLoggingIn ||
+    isStaffAuthenticated ||
+    !username.trim() ||
+    !password;
+  const registerDisabled =
+    !branchId ||
+    submitStatus === "submitting" ||
+    isLoggingIn ||
+    !isStaffAuthenticated;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -114,6 +151,18 @@ function BranchDeviceRegistrationForm() {
         branchId,
         deviceLabel
       });
+    } catch {
+      // Error state is surfaced through context for the registration panel.
+    }
+  };
+
+  const handleStaffLogin = async () => {
+    try {
+      await loginStaff({
+        username,
+        password
+      });
+      setPassword("");
     } catch {
       // Error state is surfaced through context for the registration panel.
     }
@@ -153,13 +202,95 @@ function BranchDeviceRegistrationForm() {
         </p>
       ) : null}
 
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          padding: 16,
+          borderRadius: 16,
+          background: "rgba(122, 81, 54, 0.08)"
+        }}
+      >
+        <strong>เข้าสู่ระบบพนักงานใน LIFF นี้</strong>
+
+        {staffUser?.display_name || staffUser?.username ? (
+          <p style={{ margin: 0, color: "#356f37" }}>
+            พนักงาน: {staffUser.display_name || staffUser.username}
+          </p>
+        ) : null}
+
+        {isStaffAuthenticated ? (
+          <p style={{ margin: 0, color: "#356f37" }}>
+            เข้าสู่ระบบพนักงานแล้ว พร้อมลงทะเบียนอุปกรณ์
+          </p>
+        ) : (
+          <>
+            <label htmlFor="branch-device-staff-username">ชื่อผู้ใช้พนักงาน</label>
+            <input
+              id="branch-device-staff-username"
+              type="text"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="เช่น staff003"
+              autoComplete="username"
+            />
+
+            <label htmlFor="branch-device-staff-password">รหัสผ่านพนักงาน</label>
+            <input
+              id="branch-device-staff-password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="รหัสผ่านพนักงาน"
+              autoComplete="current-password"
+            />
+
+            <button
+              type="button"
+              onClick={() => void handleStaffLogin()}
+              disabled={loginDisabled}
+            >
+              {isLoggingIn ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบพนักงาน"}
+            </button>
+          </>
+        )}
+
+        {staffSessionStatus === "missing_staff_auth" ? (
+          <p style={{ margin: 0, color: "#9f2323" }}>
+            ยังไม่ได้เข้าสู่ระบบพนักงาน ไม่สามารถลงทะเบียนอุปกรณ์ได้
+          </p>
+        ) : null}
+
+        {staffSessionStatus === "error" ? (
+          <p style={{ margin: 0, color: "#9f2323" }}>
+            ตรวจสอบ session พนักงานไม่สำเร็จ ลองเข้าสู่ระบบอีกครั้ง
+          </p>
+        ) : null}
+
+        {staffLoginStatus === "logging_in" ? (
+          <p style={{ margin: 0, color: "rgba(57, 35, 24, 0.8)" }}>
+            กำลังเข้าสู่ระบบพนักงาน...
+          </p>
+        ) : null}
+
+        {staffLoginStatus === "login_failed" && staffLoginError ? (
+          <p style={{ margin: 0, color: "#9f2323" }}>{staffLoginError}</p>
+        ) : null}
+
+        {staffLoginStatus === "login_success" && isStaffAuthenticated ? (
+          <p style={{ margin: 0, color: "#356f37" }}>
+            เข้าสู่ระบบพนักงานสำเร็จ ใช้ session นี้ลงทะเบียนอุปกรณ์ได้ทันที
+          </p>
+        ) : null}
+      </div>
+
       {submitError ? (
         <p style={{ margin: 0, color: "#9f2323" }}>{submitError}</p>
       ) : null}
 
       <button
         type="submit"
-        disabled={!branchId || submitStatus === "submitting"}
+        disabled={registerDisabled}
       >
         {submitStatus === "submitting" ? "กำลังลงทะเบียน..." : "ลงทะเบียนอุปกรณ์"}
       </button>

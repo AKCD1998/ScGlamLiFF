@@ -7,6 +7,11 @@ import {
   getMyBranchDeviceRegistration
 } from "../services/branchDeviceRegistrationService";
 import {
+  BranchDeviceStaffAuthApiError,
+  getMyStaffSession,
+  loginStaffSession
+} from "../services/branchDeviceStaffAuthService";
+import {
   getBranchDeviceGuardRuntimeConfig,
   logBranchDeviceGuardDebug,
   summarizeBranchDevicePayload
@@ -25,9 +30,15 @@ const BranchDeviceContext = createContext({
   errorMessage: "",
   submitStatus: "idle",
   submitError: "",
+  staffSessionStatus: "idle",
+  staffLoginStatus: "idle",
+  staffLoginError: "",
+  staffUser: null,
   debug: null,
   refreshRegistration: async () => {},
-  registerDevice: async () => {}
+  refreshStaffSession: async () => {},
+  registerDevice: async () => {},
+  loginStaff: async () => {}
 });
 
 const trimText = (value) => (typeof value === "string" ? value.trim() : "");
@@ -60,6 +71,14 @@ const createDebugState = (overrides = {}) => {
     lastRegisterUrl: REGISTER_URL,
     lastRegisterStatus: null,
     lastRegisterResponse: null,
+    staffSessionStarted: false,
+    lastStaffSessionUrl: "/api/auth/me",
+    lastStaffSessionStatus: null,
+    lastStaffSessionResponse: null,
+    staffLoginStarted: false,
+    lastStaffLoginUrl: "/api/auth/login",
+    lastStaffLoginStatus: null,
+    lastStaffLoginResponse: null,
     lastGuardState: "loading",
     lastReasonCode: "",
     ...overrides
@@ -76,6 +95,10 @@ const createBaseState = ({
   errorMessage = "",
   submitStatus = "idle",
   submitError = "",
+  staffSessionStatus = "idle",
+  staffLoginStatus = "idle",
+  staffLoginError = "",
+  staffUser = null,
   debug = createDebugState()
 }) => ({
   status,
@@ -87,6 +110,10 @@ const createBaseState = ({
   errorMessage,
   submitStatus,
   submitError,
+  staffSessionStatus,
+  staffLoginStatus,
+  staffLoginError,
+  staffUser,
   debug
 });
 
@@ -249,6 +276,46 @@ const applyDebugEvent = (debugState, event = {}) => {
       if (event.operation === "register") {
         nextDebug.lastRegisterStatus = event.status ?? null;
         nextDebug.lastRegisterResponse = {
+          error: trimText(event.errorMessage) || "request_failed"
+        };
+      }
+      break;
+    case "staff_auth_request_start":
+      if (event.operation === "staff_session") {
+        nextDebug.staffSessionStarted = true;
+        nextDebug.lastStaffSessionUrl =
+          trimText(event.url) || nextDebug.lastStaffSessionUrl;
+        nextDebug.lastStaffSessionStatus = null;
+        nextDebug.lastStaffSessionResponse = null;
+      }
+      if (event.operation === "staff_login") {
+        nextDebug.staffLoginStarted = true;
+        nextDebug.lastStaffLoginUrl =
+          trimText(event.url) || nextDebug.lastStaffLoginUrl;
+        nextDebug.lastStaffLoginStatus = null;
+        nextDebug.lastStaffLoginResponse = null;
+      }
+      break;
+    case "staff_auth_response":
+      if (event.operation === "staff_session") {
+        nextDebug.lastStaffSessionStatus = event.status ?? null;
+        nextDebug.lastStaffSessionResponse = event.body || null;
+      }
+      if (event.operation === "staff_login") {
+        nextDebug.lastStaffLoginStatus = event.status ?? null;
+        nextDebug.lastStaffLoginResponse = event.body || null;
+      }
+      break;
+    case "staff_auth_request_error":
+      if (event.operation === "staff_session") {
+        nextDebug.lastStaffSessionStatus = event.status ?? null;
+        nextDebug.lastStaffSessionResponse = {
+          error: trimText(event.errorMessage) || "request_failed"
+        };
+      }
+      if (event.operation === "staff_login") {
+        nextDebug.lastStaffLoginStatus = event.status ?? null;
+        nextDebug.lastStaffLoginResponse = {
           error: trimText(event.errorMessage) || "request_failed"
         };
       }
@@ -421,6 +488,28 @@ const getRegisterErrorMessage = (error) => {
   return error?.message || "ลงทะเบียนอุปกรณ์ไม่สำเร็จ";
 };
 
+const getStaffLoginErrorMessage = (error, { confirmedSession = false } = {}) => {
+  if (confirmedSession) {
+    return "เข้าสู่ระบบแล้ว แต่ LIFF session นี้ยังไม่พบ cookie พนักงาน";
+  }
+
+  if (error instanceof BranchDeviceStaffAuthApiError) {
+    const reasonCode = trimText(error.reason || error.payload?.reason);
+
+    if (reasonCode === "login_failed" || error.status === 401) {
+      return error.message || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
+    }
+
+    if (reasonCode === "bad_request" || error.status === 400) {
+      return error.message || "กรอกชื่อผู้ใช้และรหัสผ่านให้ครบ";
+    }
+
+    return error.message || "เข้าสู่ระบบพนักงานไม่สำเร็จ";
+  }
+
+  return error?.message || "เข้าสู่ระบบพนักงานไม่สำเร็จ";
+};
+
 export function BranchDeviceProvider({ children }) {
   const { mode } = useAuth();
   const [state, setState] = useState(() =>
@@ -435,6 +524,13 @@ export function BranchDeviceProvider({ children }) {
   };
 
   const handleRegisterEvent = (event) => {
+    setState((current) => ({
+      ...current,
+      debug: applyDebugEvent(current.debug, event)
+    }));
+  };
+
+  const handleStaffAuthEvent = (event) => {
     setState((current) => ({
       ...current,
       debug: applyDebugEvent(current.debug, event)
@@ -484,6 +580,69 @@ export function BranchDeviceProvider({ children }) {
     };
   }, [mode]);
 
+  useEffect(() => {
+    let isActive = true;
+
+    if (mode !== "real" || state.status !== "not_registered") {
+      return () => {
+        isActive = false;
+      };
+    }
+
+    if (state.staffSessionStatus !== "idle") {
+      return () => {
+        isActive = false;
+      };
+    }
+
+    setState((current) => ({
+      ...(current || createInitialRealState()),
+      staffSessionStatus: "checking"
+    }));
+
+    const run = async () => {
+      try {
+        const payload = await getMyStaffSession({
+          onEvent: handleStaffAuthEvent
+        });
+
+        if (!isActive) {
+          return;
+        }
+
+        setState((current) => ({
+          ...(current || createInitialRealState()),
+          staffSessionStatus: "authenticated",
+          staffLoginError: "",
+          staffUser:
+            payload?.user && typeof payload.user === "object"
+              ? payload.user
+              : current?.staffUser || null
+        }));
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        const reasonCode = trimText(error?.reason || error?.payload?.reason);
+
+        setState((current) => ({
+          ...(current || createInitialRealState()),
+          staffSessionStatus:
+            reasonCode === "missing_staff_auth" ? "missing_staff_auth" : "error",
+          staffUser:
+            reasonCode === "missing_staff_auth" ? null : current?.staffUser || null
+        }));
+      }
+    };
+
+    run();
+
+    return () => {
+      isActive = false;
+    };
+  }, [mode, state.staffSessionStatus, state.status]);
+
   const refreshRegistration = async () => {
     if (mode !== "real") {
       setState(createBypassedState());
@@ -504,6 +663,46 @@ export function BranchDeviceProvider({ children }) {
       setState((current) =>
         mapLookupErrorToState(error, current || createInitialRealState())
       );
+      throw error;
+    }
+  };
+
+  const refreshStaffSession = async () => {
+    if (mode !== "real") {
+      return null;
+    }
+
+    setState((current) => ({
+      ...(current || createInitialRealState()),
+      staffSessionStatus: "checking"
+    }));
+
+    try {
+      const payload = await getMyStaffSession({
+        onEvent: handleStaffAuthEvent
+      });
+
+      setState((current) => ({
+        ...(current || createInitialRealState()),
+        staffSessionStatus: "authenticated",
+        staffLoginError: "",
+        staffUser:
+          payload?.user && typeof payload.user === "object"
+            ? payload.user
+            : current?.staffUser || null
+      }));
+
+      return payload;
+    } catch (error) {
+      const reasonCode = trimText(error?.reason || error?.payload?.reason);
+
+      setState((current) => ({
+        ...(current || createInitialRealState()),
+        staffSessionStatus:
+          reasonCode === "missing_staff_auth" ? "missing_staff_auth" : "error",
+        staffUser:
+          reasonCode === "missing_staff_auth" ? null : current?.staffUser || null
+      }));
       throw error;
     }
   };
@@ -535,10 +734,17 @@ export function BranchDeviceProvider({ children }) {
       );
       return snapshot;
     } catch (error) {
+      const isMissingStaffAuth =
+        error instanceof BranchDeviceRegistrationApiError &&
+        trimText(error.reason || error.payload?.reason) === "missing_staff_auth";
+
       setState((current) => ({
         ...(current || createInitialRealState()),
         submitStatus: "error",
         submitError: getRegisterErrorMessage(error),
+        staffSessionStatus: isMissingStaffAuth
+          ? "missing_staff_auth"
+          : current?.staffSessionStatus || "idle",
         debug: {
           ...((current && current.debug) || createDebugState()),
           lastGuardState: current?.status || "loading",
@@ -549,12 +755,84 @@ export function BranchDeviceProvider({ children }) {
     }
   };
 
+  const loginStaff = async ({ username, password }) => {
+    setState((current) => ({
+      ...(current || createInitialRealState()),
+      staffLoginStatus: "logging_in",
+      staffLoginError: "",
+      submitError: ""
+    }));
+
+    try {
+      await loginStaffSession(
+        {
+          username,
+          password
+        },
+        {
+          onEvent: handleStaffAuthEvent
+        }
+      );
+
+      let sessionPayload;
+
+      try {
+        sessionPayload = await getMyStaffSession({
+          onEvent: handleStaffAuthEvent
+        });
+      } catch (error) {
+        error.__staffSessionConfirmationFailed = true;
+        setState((current) => ({
+          ...(current || createInitialRealState()),
+          staffSessionStatus: "missing_staff_auth",
+          staffLoginStatus: "login_failed",
+          staffLoginError: getStaffLoginErrorMessage(error, {
+            confirmedSession: true
+          }),
+          staffUser: null
+        }));
+        throw error;
+      }
+
+      setState((current) => ({
+        ...(current || createInitialRealState()),
+        staffSessionStatus: "authenticated",
+        staffLoginStatus: "login_success",
+        staffLoginError: "",
+        submitError: "",
+        staffUser:
+          sessionPayload?.user && typeof sessionPayload.user === "object"
+            ? sessionPayload.user
+            : current?.staffUser || null
+      }));
+
+      return sessionPayload;
+    } catch (error) {
+      setState((current) => ({
+        ...(current || createInitialRealState()),
+        staffSessionStatus:
+          current?.staffSessionStatus === "authenticated"
+            ? "authenticated"
+            : "missing_staff_auth",
+        staffLoginStatus: "login_failed",
+        staffLoginError: getStaffLoginErrorMessage(error, {
+          confirmedSession: Boolean(error?.__staffSessionConfirmationFailed)
+        }),
+        staffUser:
+          current?.staffSessionStatus === "authenticated" ? current?.staffUser : null
+      }));
+      throw error;
+    }
+  };
+
   return (
     <BranchDeviceContext.Provider
       value={{
         ...state,
         refreshRegistration,
-        registerDevice
+        refreshStaffSession,
+        registerDevice,
+        loginStaff
       }}
     >
       {children}

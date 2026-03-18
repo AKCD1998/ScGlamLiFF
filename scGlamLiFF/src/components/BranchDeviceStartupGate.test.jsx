@@ -9,11 +9,26 @@ import { BranchDeviceRegistrationApiError } from "../services/branchDeviceRegist
 const {
   useAuthMock,
   getMyBranchDeviceRegistrationMock,
-  createBranchDeviceRegistrationMock
+  createBranchDeviceRegistrationMock,
+  getMyStaffSessionMock,
+  loginStaffSessionMock,
+  BranchDeviceStaffAuthApiErrorClass
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   getMyBranchDeviceRegistrationMock: vi.fn(),
-  createBranchDeviceRegistrationMock: vi.fn()
+  createBranchDeviceRegistrationMock: vi.fn(),
+  getMyStaffSessionMock: vi.fn(),
+  loginStaffSessionMock: vi.fn(),
+  BranchDeviceStaffAuthApiErrorClass: class BranchDeviceStaffAuthApiError extends Error {
+    constructor(message, { status, payload } = {}) {
+      super(message);
+      this.name = "BranchDeviceStaffAuthApiError";
+      this.status = status ?? 0;
+      this.payload = payload ?? null;
+      this.reason = payload?.reason || "";
+      this.code = payload?.code || "";
+    }
+  }
 }));
 
 vi.mock("../context/AuthContext", () => ({
@@ -43,6 +58,12 @@ vi.mock("../services/branchDeviceRegistrationService", () => {
   };
 });
 
+vi.mock("../services/branchDeviceStaffAuthService", () => ({
+  BranchDeviceStaffAuthApiError: BranchDeviceStaffAuthApiErrorClass,
+  getMyStaffSession: getMyStaffSessionMock,
+  loginStaffSession: loginStaffSessionMock
+}));
+
 const renderGuard = () =>
   render(
     <BranchDeviceProvider>
@@ -57,6 +78,17 @@ describe("BranchDeviceStartupGate", () => {
     useAuthMock.mockReturnValue({ mode: "real" });
     getMyBranchDeviceRegistrationMock.mockReset();
     createBranchDeviceRegistrationMock.mockReset();
+    getMyStaffSessionMock.mockReset();
+    loginStaffSessionMock.mockReset();
+
+    getMyStaffSessionMock.mockRejectedValue(
+      new BranchDeviceStaffAuthApiErrorClass("ยังไม่ได้เข้าสู่ระบบพนักงาน", {
+        status: 401,
+        payload: {
+          reason: "missing_staff_auth"
+        }
+      })
+    );
   });
 
   afterEach(() => {
@@ -98,6 +130,12 @@ describe("BranchDeviceStartupGate", () => {
 
     expect(await screen.findByText("ต้องลงทะเบียนอุปกรณ์")).toBeTruthy();
     expect(screen.getByText("LINE: Front Desk Phone")).toBeTruthy();
+    expect(screen.getByText("เข้าสู่ระบบพนักงานใน LIFF นี้")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "ยังไม่ได้เข้าสู่ระบบพนักงาน ไม่สามารถลงทะเบียนอุปกรณ์ได้"
+      )
+    ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "ลงทะเบียนอุปกรณ์" })
     ).toBeTruthy();
@@ -192,6 +230,13 @@ describe("BranchDeviceStartupGate", () => {
           display_name: "Front Desk Phone"
         }
       });
+    getMyStaffSessionMock.mockResolvedValue({
+      success: true,
+      user: {
+        username: "staff003",
+        display_name: "SC 003 สาขาวัดช่องลม"
+      }
+    });
     createBranchDeviceRegistrationMock.mockResolvedValue({
       ok: true,
       action: "created",
@@ -205,6 +250,7 @@ describe("BranchDeviceStartupGate", () => {
     renderGuard();
 
     await screen.findByText("ต้องลงทะเบียนอุปกรณ์");
+    await waitFor(() => expect(getMyStaffSessionMock).toHaveBeenCalledTimes(1));
 
     fireEvent.change(screen.getByLabelText("ชื่อเครื่อง (ไม่บังคับ)"), {
       target: { value: "Front Desk iPhone" }
@@ -222,5 +268,134 @@ describe("BranchDeviceStartupGate", () => {
     );
     expect(await screen.findByTestId("guard-ready")).toBeTruthy();
     expect(getMyBranchDeviceRegistrationMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("logs in staff inside the LIFF registration screen and enables immediate retry", async () => {
+    getMyBranchDeviceRegistrationMock
+      .mockResolvedValueOnce({
+        ok: true,
+        registered: false,
+        active: false,
+        line_identity: {
+          line_user_id: "U123",
+          display_name: "Front Desk Phone"
+        }
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        registered: true,
+        active: true,
+        branch_id: "branch-003",
+        registration: {
+          id: "registration-uuid",
+          branch_id: "branch-003",
+          status: "active"
+        }
+      });
+    loginStaffSessionMock.mockResolvedValue({
+      success: true
+    });
+    getMyStaffSessionMock
+      .mockRejectedValueOnce(
+        new BranchDeviceStaffAuthApiErrorClass("ยังไม่ได้เข้าสู่ระบบพนักงาน", {
+          status: 401,
+          payload: {
+            reason: "missing_staff_auth"
+          }
+        })
+      )
+      .mockResolvedValueOnce({
+        success: true,
+        user: {
+          username: "staff003",
+          display_name: "SC 003 สาขาวัดช่องลม"
+        }
+      });
+    createBranchDeviceRegistrationMock.mockResolvedValue({
+      ok: true,
+      created: true,
+      active: true
+    });
+
+    renderGuard();
+
+    expect(await screen.findByText("ต้องลงทะเบียนอุปกรณ์")).toBeTruthy();
+
+    const registerButton = screen.getByRole("button", {
+      name: "ลงทะเบียนอุปกรณ์"
+    });
+    expect(registerButton.disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("ชื่อผู้ใช้พนักงาน"), {
+      target: { value: "staff003" }
+    });
+    fireEvent.change(screen.getByLabelText("รหัสผ่านพนักงาน"), {
+      target: { value: "password-003" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "เข้าสู่ระบบพนักงาน" }));
+
+    await waitFor(() =>
+      expect(loginStaffSessionMock).toHaveBeenCalledWith(
+        {
+          username: "staff003",
+          password: "password-003"
+        },
+        {
+          onEvent: expect.any(Function)
+        }
+      )
+    );
+    expect(
+      await screen.findByText("เข้าสู่ระบบพนักงานสำเร็จ ใช้ session นี้ลงทะเบียนอุปกรณ์ได้ทันที")
+    ).toBeTruthy();
+    expect(registerButton.disabled).toBe(false);
+
+    fireEvent.click(registerButton);
+
+    await waitFor(() =>
+      expect(createBranchDeviceRegistrationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch_id: "branch-003",
+          onEvent: expect.any(Function)
+        })
+      )
+    );
+    expect(await screen.findByTestId("guard-ready")).toBeTruthy();
+  });
+
+  it("surfaces login errors clearly inside the registration panel", async () => {
+    getMyBranchDeviceRegistrationMock.mockResolvedValue({
+      ok: true,
+      registered: false,
+      active: false,
+      line_identity: {
+        line_user_id: "U123",
+        display_name: "Front Desk Phone"
+      }
+    });
+    loginStaffSessionMock.mockRejectedValue(
+      new BranchDeviceStaffAuthApiErrorClass("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", {
+        status: 401,
+        payload: {
+          reason: "login_failed"
+        }
+      })
+    );
+
+    renderGuard();
+
+    expect(await screen.findByText("ต้องลงทะเบียนอุปกรณ์")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("ชื่อผู้ใช้พนักงาน"), {
+      target: { value: "staff003" }
+    });
+    fireEvent.change(screen.getByLabelText("รหัสผ่านพนักงาน"), {
+      target: { value: "wrong-password" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "เข้าสู่ระบบพนักงาน" }));
+
+    expect(
+      await screen.findByText("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+    ).toBeTruthy();
   });
 });
