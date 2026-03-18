@@ -6,10 +6,53 @@ import {
   getBookingBranchLabel
 } from "../services/branchCatalog";
 import { useBranchDevice } from "../context/BranchDeviceContext";
+import { isBranchDeviceGuardDebugEnabled } from "../utils/branchDeviceGuardDebug";
+
+function BranchDeviceGuardDebugPanel({ debug, status, reasonCode }) {
+  if (!isBranchDeviceGuardDebugEnabled()) {
+    return null;
+  }
+
+  const text = JSON.stringify(
+    {
+      apiBaseUrl: debug?.apiBaseUrl || null,
+      liffReady: debug?.liffReady ?? null,
+      inClient: debug?.inClient ?? null,
+      isLoggedIn: debug?.isLoggedIn ?? null,
+      hasIdToken: debug?.hasIdToken ?? null,
+      hasAccessToken: debug?.hasAccessToken ?? null,
+      lastLookupStarted: debug?.lastLookupStarted ?? null,
+      lastLookupStatus: debug?.lastLookupStatus ?? null,
+      lastLookupResponse: debug?.lastLookupResponse ?? null,
+      lastGuardState: status,
+      lastReasonCode: reasonCode
+    },
+    null,
+    2
+  );
+
+  return (
+    <pre
+      style={{
+        marginTop: 16,
+        padding: 12,
+        borderRadius: 16,
+        background: "rgba(48, 33, 23, 0.08)",
+        overflowX: "auto",
+        fontSize: 12
+      }}
+    >
+      {text}
+    </pre>
+  );
+}
 
 function BranchDevicePanel({
   title,
   message,
+  debug,
+  status,
+  reasonCode,
   children
 }) {
   return (
@@ -29,6 +72,11 @@ function BranchDevicePanel({
           <h1 style={{ marginTop: 0 }}>{title}</h1>
           <p>{message}</p>
           {children}
+          <BranchDeviceGuardDebugPanel
+            debug={debug}
+            status={status}
+            reasonCode={reasonCode}
+          />
         </div>
       </div>
     </AppLayout>
@@ -108,13 +156,17 @@ function BranchDeviceRegistrationForm() {
 }
 
 function BranchDeviceInactivePanel() {
-  const { registration, refreshRegistration } = useBranchDevice();
+  const { debug, reasonCode, registration, refreshRegistration, status } =
+    useBranchDevice();
   const branchLabel = getBookingBranchLabel(registration?.branch_id);
 
   return (
     <BranchDevicePanel
       title="อุปกรณ์ถูกปิดใช้งาน"
       message={`เครื่องนี้ผูกกับ ${branchLabel || "สาขาเดิม"} แต่สถานะยังไม่ active`}
+      debug={debug}
+      status={status}
+      reasonCode={reasonCode}
     >
       <button type="button" onClick={() => void refreshRegistration()}>
         ตรวจสอบอีกครั้ง
@@ -124,26 +176,33 @@ function BranchDeviceInactivePanel() {
 }
 
 export default function BranchDeviceStartupGate({ children }) {
-  const { status, errorMessage, refreshRegistration } = useBranchDevice();
+  const { debug, errorMessage, reasonCode, refreshRegistration, status } =
+    useBranchDevice();
 
-  if (status === "ready") {
+  if (status === "active") {
     return children;
   }
 
-  if (status === "checking") {
+  if (status === "loading") {
     return (
       <BranchDevicePanel
         title="กำลังตรวจสอบอุปกรณ์"
         message="กำลังยืนยันว่าเครื่องนี้เป็นอุปกรณ์สาขาที่ลงทะเบียนไว้"
+        debug={debug}
+        status={status}
+        reasonCode={reasonCode}
       />
     );
   }
 
-  if (status === "registration_required") {
+  if (status === "not_registered") {
     return (
       <BranchDevicePanel
         title="ต้องลงทะเบียนอุปกรณ์"
         message="เครื่องนี้ยังไม่ได้ผูกกับสาขา กรุณาลงทะเบียนก่อนเริ่มใช้งาน"
+        debug={debug}
+        status={status}
+        reasonCode={reasonCode}
       >
         <BranchDeviceRegistrationForm />
       </BranchDevicePanel>
@@ -154,10 +213,29 @@ export default function BranchDeviceStartupGate({ children }) {
     return <BranchDeviceInactivePanel />;
   }
 
+  if (status === "request_never_started") {
+    return (
+      <BranchDevicePanel
+        title="ยังไม่เริ่มตรวจสอบอุปกรณ์"
+        message={errorMessage || "เปิดผ่าน LINE แล้วลองใหม่อีกครั้ง"}
+        debug={debug}
+        status={status}
+        reasonCode={reasonCode}
+      >
+        <button type="button" onClick={() => void refreshRegistration()}>
+          ลองใหม่
+        </button>
+      </BranchDevicePanel>
+    );
+  }
+
   return (
     <BranchDevicePanel
       title="ตรวจสอบอุปกรณ์ไม่สำเร็จ"
       message={errorMessage || "ไม่สามารถยืนยัน LIFF device ได้"}
+      debug={debug}
+      status={status}
+      reasonCode={reasonCode}
     >
       <button type="button" onClick={() => void refreshRegistration()}>
         ลองใหม่

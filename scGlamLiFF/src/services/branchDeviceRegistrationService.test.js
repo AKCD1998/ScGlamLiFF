@@ -72,7 +72,7 @@ describe("branchDeviceRegistrationService", () => {
       })
     );
 
-    await getMyBranchDeviceRegistration();
+    const payload = await getMyBranchDeviceRegistration();
 
     const [url, options] = fetchMock.mock.calls[0];
     const requestUrl = parseRequestUrl(url);
@@ -86,6 +86,9 @@ describe("branchDeviceRegistrationService", () => {
       "X-Line-Id-Token": "line-id-token",
       "X-Liff-App-Id": "1650000000-test"
     });
+    expect(payload.success).toBe(true);
+    expect(payload.registered).toBe(true);
+    expect(payload.active).toBe(true);
   });
 
   it("posts the branch registration payload with LIFF headers and app metadata", async () => {
@@ -128,6 +131,42 @@ describe("branchDeviceRegistrationService", () => {
       branch_id: "branch-003",
       device_label: "Front Desk iPhone",
       liff_app_id: "1650000000-test"
+    });
+  });
+
+  it("normalizes the canonical GET /me response shape from backend reason fields", async () => {
+    getLiffIdentityTokensMock.mockResolvedValue({
+      idToken: "line-id-token",
+      accessToken: "line-access-token",
+      liffAppId: "1650000000-test"
+    });
+    fetchMock.mockResolvedValue(
+      createResponse({
+        ok: true,
+        status: 200,
+        payload: {
+          success: true,
+          registered: false,
+          active: null,
+          reason: "not_registered",
+          branchId: null,
+          registrationId: null,
+          lineIdentity: {
+            line_user_id: "U1234567890"
+          }
+        }
+      })
+    );
+
+    const payload = await getMyBranchDeviceRegistration();
+
+    expect(payload.success).toBe(true);
+    expect(payload.registered).toBe(false);
+    expect(payload.active).toBe(null);
+    expect(payload.reason).toBe("not_registered");
+    expect(payload.branchId).toBe(null);
+    expect(payload.lineIdentity).toEqual({
+      line_user_id: "U1234567890"
     });
   });
 });

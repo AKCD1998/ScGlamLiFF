@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import BranchDeviceStartupGate from "./BranchDeviceStartupGate";
 import { BranchDeviceProvider } from "../context/BranchDeviceContext";
+import { BranchDeviceRegistrationApiError } from "../services/branchDeviceRegistrationService";
 
 const {
   useAuthMock,
@@ -122,6 +123,35 @@ describe("BranchDeviceStartupGate", () => {
     ).toBeTruthy();
   });
 
+  it("keeps missing LIFF token separate from generic inactive/not-registered states", async () => {
+    getMyBranchDeviceRegistrationMock.mockRejectedValue(
+      new BranchDeviceRegistrationApiError("Missing LINE LIFF token", {
+        status: 400,
+        payload: {
+          reason: "missing_token"
+        }
+      })
+    );
+
+    renderGuard();
+
+    expect(await screen.findByText("ตรวจสอบอุปกรณ์ไม่สำเร็จ")).toBeTruthy();
+    expect(
+      screen.getByText("ไม่พบ LIFF token สำหรับยืนยันเครื่องนี้")
+    ).toBeTruthy();
+  });
+
+  it("keeps outside-LINE runtime as request_never_started instead of pretending a backend failure", async () => {
+    getMyBranchDeviceRegistrationMock.mockRejectedValue(
+      new Error("LIFF_NOT_IN_CLIENT")
+    );
+
+    renderGuard();
+
+    expect(await screen.findByText("ยังไม่เริ่มตรวจสอบอุปกรณ์")).toBeTruthy();
+    expect(screen.getByText("กรุณาเปิดผ่าน LINE")).toBeTruthy();
+  });
+
   it("submits first-time registration and refreshes into the ready state", async () => {
     getMyBranchDeviceRegistrationMock
       .mockResolvedValueOnce({
@@ -169,10 +199,13 @@ describe("BranchDeviceStartupGate", () => {
     fireEvent.click(screen.getByRole("button", { name: "ลงทะเบียนอุปกรณ์" }));
 
     await waitFor(() =>
-      expect(createBranchDeviceRegistrationMock).toHaveBeenCalledWith({
-        branch_id: "branch-003",
-        device_label: "Front Desk iPhone"
-      })
+      expect(createBranchDeviceRegistrationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch_id: "branch-003",
+          device_label: "Front Desk iPhone",
+          onEvent: expect.any(Function)
+        })
+      )
     );
     expect(await screen.findByTestId("guard-ready")).toBeTruthy();
     expect(getMyBranchDeviceRegistrationMock).toHaveBeenCalledTimes(2);
