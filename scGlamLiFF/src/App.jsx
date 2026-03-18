@@ -10,17 +10,26 @@ import BookingFlowPage from "./pages/BookingFlowPage";
 import StaffScanPage from "./pages/StaffScanPage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsPage from "./pages/TermsPage";
+import BillVerificationPage from "./pages/BillVerificationPage";
 import LoadingOverlay from "./components/LoadingOverlay";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { BranchDeviceProvider } from "./context/BranchDeviceContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import DebugOverlay from "./components/DebugOverlay";
 import AuthStatusPanel from "./components/AuthStatusPanel";
 import DebugPanel from "./components/DebugPanel";
+import BranchDeviceStartupGate from "./components/BranchDeviceStartupGate";
+import MockModeBanner from "./components/MockModeBanner";
 import { isDebugEnabled } from "./utils/debug";
 
-function ActionButton({ title, subtitle, onClick }) {
+function ActionButton({ title, subtitle, onClick, disabled = false }) {
   return (
-    <button className="action-button" type="button" onClick={onClick}>
+    <button
+      className="action-button"
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+    >
       <span className="action-title">{title}</span>
       {subtitle ? <span className="action-subtitle">{subtitle}</span> : null}
     </button>
@@ -37,17 +46,17 @@ function HomePage() {
           <ActionButton
             title="จองทรีตเมนต์"
             subtitle="Treatment reservation"
-            onClick={() => navigate("/my-treatments")}
+            disabled
           />
           <ActionButton
             title="ทรีตเมนต์ของฉัน"
             subtitle="My treatments"
-            onClick={() => navigate("/my-treatments")}
+            disabled
           />
           <ActionButton
-            title="สำหรับร้านค้า"
-            subtitle="For shop"
-            onClick={() => navigate("/my-treatments")}
+            title="ร้านค้าตรวจสอบบิล"
+            subtitle="Bill verification"
+            onClick={() => navigate("/bill-verification")}
           />
         </main>
       </div>
@@ -219,6 +228,7 @@ function AuthGate({ children }) {
           Show READY
         </button>
       ) : null}
+      <MockModeBanner />
       {children}
       <LoadingOverlay open={status === "loading"} text="กำลังเข้าสู่ระบบ..." />
       {showDebug ? <DebugOverlay /> : null}
@@ -254,6 +264,7 @@ function AppRoutes() {
         element={<TopPicksTreatmentsPage />}
       />
       <Route path="/treatments/:slug" element={<TreatmentServiceDetailPage />} />
+      <Route path="/bill-verification" element={<BillVerificationPage />} />
       <Route path="/staff/scan" element={<StaffScanPage />} />
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/terms" element={<TermsPage />} />
@@ -276,7 +287,11 @@ function App() {
         }
       >
         <AuthGate>
-          <AppRoutes />
+          <BranchDeviceProvider>
+            <BranchDeviceStartupGate>
+              <AppRoutes />
+            </BranchDeviceStartupGate>
+          </BranchDeviceProvider>
         </AuthGate>
       </ErrorBoundary>
     </AuthProvider>

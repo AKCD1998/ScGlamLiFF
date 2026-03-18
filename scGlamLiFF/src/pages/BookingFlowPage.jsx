@@ -7,22 +7,14 @@ import smoothImage from "../assets/smooth.png";
 import BookingDetailsModal from "../components/BookingDetailsModal";
 import LoadingOverlay from "../components/LoadingOverlay";
 import { useAuth } from "../context/AuthContext";
+import { useBranchDevice } from "../context/BranchDeviceContext";
+import {
+  DEFAULT_BOOKING_BRANCH_ID,
+  getBookingBranchLabel,
+  getBookingBranchOptions
+} from "../services/branchCatalog";
 import { apiUrl } from "../utils/apiBase";
 import "./BookingFlowPage.css";
-
-const branches = [
-  { id: "branch-003", label: "ศิริชัยเภสัช สาขาวัดช่องลม (003)", disabled: false },
-  {
-    id: "branch-mk",
-    label: "ศิริชัยเภสัช สาขาตลาดแม่กลอง (ยังไม่พร้อมให้บริการ)",
-    disabled: true
-  },
-  {
-    id: "branch-bn",
-    label: "ศิริชัยเภสัช สาขาตลาดบางน้อย (ยังไม่พร้อมให้บริการ)",
-    disabled: true
-  }
-];
 
 const bookedSlots = ["10:30", "14:00", "16:30"];
 
@@ -106,7 +98,7 @@ const getBangkokDateOnly = (date) => {
 function BookingFlowPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [selectedBranch, setSelectedBranch] = useState(branches[0].id);
+  const [selectedBranch, setSelectedBranch] = useState(DEFAULT_BOOKING_BRANCH_ID);
   const [selectedDate, setSelectedDate] = useState();
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedMaskId, setSelectedMaskId] = useState(null);
@@ -120,7 +112,17 @@ function BookingFlowPage() {
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
+  const { branchId: registeredBranchId } = useBranchDevice();
   const lineUserId = user?.lineUserId;
+  const branchOptions = getBookingBranchOptions(registeredBranchId || selectedBranch);
+
+  useEffect(() => {
+    if (!registeredBranchId) {
+      return;
+    }
+
+    setSelectedBranch(registeredBranchId);
+  }, [registeredBranchId]);
 
   useEffect(() => {
     let isActive = true;
@@ -246,8 +248,7 @@ function BookingFlowPage() {
     );
   };
 
-  const selectedBranchLabel =
-    branches.find((branch) => branch.id === selectedBranch)?.label || "";
+  const selectedBranchLabel = getBookingBranchLabel(selectedBranch);
 
   const handleConfirmClick = () => {
     if (!selectedDate) {
@@ -386,8 +387,9 @@ function BookingFlowPage() {
                 id="branch-select"
                 value={selectedBranch}
                 onChange={(event) => setSelectedBranch(event.target.value)}
+                disabled={Boolean(registeredBranchId)}
               >
-                {branches.map((branch) => (
+                {branchOptions.map((branch) => (
                   <option
                     key={branch.id}
                     value={branch.id}
@@ -397,6 +399,11 @@ function BookingFlowPage() {
                   </option>
                 ))}
               </select>
+              {registeredBranchId ? (
+                <p className="booking-confirmation__note">
+                  อุปกรณ์นี้ผูกกับสาขา {selectedBranchLabel || registeredBranchId}
+                </p>
+              ) : null}
 
               <div className="booking-date">
                 <DayPicker

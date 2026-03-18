@@ -1,19 +1,16 @@
 import liff from "@line/liff";
 import { apiUrl } from "./apiBase";
+import {
+  getLiffIdentityTokens,
+  initializeLiff
+} from "./liffIdentity";
 
 export const initializeLIFFAndGetUser = async (onStep) => {
-  const liffId = (import.meta.env.VITE_LIFF_ID || "").trim();
-  console.log("LIFF raw =", JSON.stringify(import.meta.env.VITE_LIFF_ID));
-  console.log("LIFF trimmed =", JSON.stringify(liffId), "len=", liffId.length);
-  if (!liffId) {
-    throw new Error("Missing VITE_LIFF_ID");
-  }
-
   onStep?.({
     step: "init_start"
   });
 
-  await liff.init({ liffId });
+  await initializeLiff();
 
   const sanitizeLiffTokens = (label) => {
     if (typeof window === "undefined") {
@@ -63,7 +60,8 @@ export const initializeLIFFAndGetUser = async (onStep) => {
     return null;
   }
 
-  const idToken = liff.getIDToken();
+  const identityTokens = await getLiffIdentityTokens();
+  const idToken = identityTokens?.idToken || "";
   if (!idToken) {
     throw new Error("Missing LINE ID token");
   }

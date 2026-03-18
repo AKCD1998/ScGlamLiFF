@@ -1,5 +1,7 @@
+import { debugEnabled } from "../config/env";
+
 export const isDebugEnabled = (search = "") => {
-  if (import.meta.env.VITE_ENABLE_DEBUG === "true") {
+  if (debugEnabled) {
     return true;
   }
   if (typeof window === "undefined") {

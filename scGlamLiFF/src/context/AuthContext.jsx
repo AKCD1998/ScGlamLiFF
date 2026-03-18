@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import liff from "@line/liff";
+import { useMock as mockEnabled } from "../config/env";
 import { getMockUserId, storeMockUserIdFromQuery } from "../utils/mockAuth";
 import { initializeLIFFAndGetUser } from "../utils/liffSession";
 
@@ -12,52 +13,64 @@ const AuthContext = createContext({
   debug: null
 });
 
+const createDebugState = (overrides = {}) => ({
+  useMock: mockEnabled,
+  isInClient: null,
+  isLoggedIn: null,
+  hasIdToken: null,
+  step: "init",
+  ...overrides
+});
+
+const createMockUser = () => {
+  const queryUserId = storeMockUserIdFromQuery();
+  const userId = queryUserId || getMockUserId() || "mock-user-001";
+
+  return {
+    userId,
+    lineUserId: userId,
+    displayName: "Mock User",
+    pictureUrl: "",
+    statusMessage: "Mock mode"
+  };
+};
+
 export function AuthProvider({ children }) {
   const location = useLocation();
-  const useMock = import.meta.env.VITE_USE_MOCK === "true";
-  const [state, setState] = useState({
-    status: "loading",
-    mode: useMock ? "mock" : "real",
-    user: null,
-    error: null,
-    debug: {
-      useMock,
-      isInClient: null,
-      isLoggedIn: null,
-      hasIdToken: null,
-      step: "init"
-    }
-  });
+  const [state, setState] = useState(() =>
+    mockEnabled
+      ? {
+          status: "ready",
+          mode: "mock",
+          user: createMockUser(),
+          error: null,
+          debug: createDebugState({ step: "mock_ready" })
+        }
+      : {
+          status: "loading",
+          mode: "real",
+          user: null,
+          error: null,
+          debug: createDebugState()
+        }
+  );
 
   useEffect(() => {
-    if (!useMock) {
+    if (!mockEnabled) {
       return;
     }
-
-    // Mock mode is opt-in via env flag; keep mock utilities for local testing.
-    const queryUserId = storeMockUserIdFromQuery();
-    const lineUserId = queryUserId || getMockUserId();
 
     setState({
       status: "ready",
       mode: "mock",
-      user: {
-        lineUserId,
-        displayName: "Test User"
-      },
+      user: createMockUser(),
       error: null,
-      debug: {
-        useMock: true,
-        isInClient: null,
-        isLoggedIn: null,
-        hasIdToken: null,
-        step: "mock_ready"
-      }
+      debug: createDebugState({ step: "mock_ready" })
     });
-  }, [useMock, location.search]);
+  }, [location.search]);
 
   useEffect(() => {
-    if (useMock) {
+    if (mockEnabled) {
       return;
     }
 
@@ -66,14 +79,7 @@ export function AuthProvider({ children }) {
       ...prev,
       status: "loading",
       error: null,
-      debug: {
-        ...prev.debug,
-        useMock: false,
-        isInClient: null,
-        isLoggedIn: null,
-        hasIdToken: null,
-        step: "loading"
-      }
+      debug: createDebugState({ step: "loading" })
     }));
 
     const run = async () => {
@@ -97,17 +103,19 @@ export function AuthProvider({ children }) {
           status: "ready",
           mode: "real",
           user: {
+            userId: session.lineUserId,
             lineUserId: session.lineUserId,
-            displayName: session.displayName
+            displayName: session.displayName,
+            pictureUrl: session.pictureUrl || "",
+            statusMessage: session.statusMessage || ""
           },
           error: null,
-          debug: {
-            useMock: false,
+          debug: createDebugState({
             isInClient: liff.isInClient(),
             isLoggedIn: liff.isLoggedIn(),
             hasIdToken: Boolean(liff.getIDToken()),
             step: "ready"
-          }
+          })
         });
       } catch (error) {
         if (!isActive) {
@@ -119,13 +127,12 @@ export function AuthProvider({ children }) {
             mode: "real",
             user: null,
             error: null,
-            debug: {
-              useMock: false,
+            debug: createDebugState({
               isInClient: false,
               isLoggedIn: false,
               hasIdToken: false,
               step: "blocked_not_in_client"
-            }
+            })
           });
           return;
         }
@@ -136,13 +143,7 @@ export function AuthProvider({ children }) {
           mode: "real",
           user: null,
           error: { message },
-          debug: {
-            useMock: false,
-            isInClient: null,
-            isLoggedIn: null,
-            hasIdToken: null,
-            step: "error"
-          }
+          debug: createDebugState({ step: "error" })
         });
       }
     };
@@ -152,7 +153,7 @@ export function AuthProvider({ children }) {
     return () => {
       isActive = false;
     };
-  }, [useMock]);
+  }, []);
 
   const value = useMemo(() => state, [state]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -3,6 +3,7 @@ import cors from "cors";
 import express from "express";
 import pg from "pg";
 import omiseRouter from "./routes/omise.routes.js";
+import ocrRouter from "./routes/ocr.routes.js";
 
 const { Pool } = pg;
 
@@ -1364,6 +1365,7 @@ app.post("/api/appointments/redeem", async (req, res) => {
 });
 
 app.use("/", omiseRouter);
+app.use("/", ocrRouter);
 
 app.listen(port, () => {
   console.log(`Backend listening on port ${port}`);

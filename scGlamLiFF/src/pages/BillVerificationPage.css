@@ -1,0 +1,429 @@
+.bill-verification-page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 8px 0 24px;
+}
+
+.bill-verification-page__header-spacer {
+  width: min(420px, 100%);
+  min-height: 1px;
+}
+
+.bill-verification-page__hero,
+.bill-verification-page__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.bill-verification-panel,
+.bill-verification-card {
+  border: 2px solid rgba(126, 89, 63, 0.64);
+  border-radius: 32px;
+  background: rgba(248, 239, 224, 0.92);
+  box-shadow: 0 18px 36px rgba(95, 67, 43, 0.12);
+}
+
+.bill-verification-panel--heading {
+  min-height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.bill-verification-panel--heading h1 {
+  margin: 0;
+  color: #7a5136;
+  font-size: clamp(34px, 4.6vw, 54px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.bill-verification-panel--status {
+  min-height: 156px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 32px;
+  text-align: center;
+}
+
+.bill-verification-panel--status h2,
+.bill-verification-panel--status p {
+  margin: 0;
+  color: #7a5136;
+}
+
+.bill-verification-panel--status h2 {
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 700;
+}
+
+.bill-verification-panel--status p {
+  color: rgba(122, 81, 54, 0.84);
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.bill-verification-panel--new {
+  min-height: 206px;
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 28px 36px;
+}
+
+.bill-verification-panel--new-button {
+  width: 100%;
+  font-family: inherit;
+  appearance: none;
+  cursor: pointer;
+  text-align: inherit;
+  transition: transform 0.16s ease, box-shadow 0.16s ease,
+    border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.bill-verification-panel--new-button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(122, 81, 54, 0.88);
+  background: rgba(252, 242, 226, 0.96);
+  box-shadow: 0 22px 42px rgba(95, 67, 43, 0.16);
+}
+
+.bill-verification-panel--new-button:active {
+  transform: translateY(0);
+  box-shadow: 0 14px 28px rgba(95, 67, 43, 0.14);
+}
+
+.bill-verification-panel--new-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(122, 81, 54, 0.22),
+    0 22px 42px rgba(95, 67, 43, 0.16);
+}
+
+.bill-verification-panel__plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7a5136;
+  font-size: clamp(92px, 14vw, 144px);
+  font-weight: 300;
+  line-height: 1;
+}
+
+.bill-verification-panel__title {
+  color: #7a5136;
+  font-size: clamp(30px, 4vw, 48px);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+
+.bill-verification-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) 112px minmax(0, 1fr) 160px;
+  gap: 20px;
+  align-items: center;
+  padding: 24px 28px;
+}
+
+.bill-verification-card__status-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  min-height: 168px;
+  padding: 22px 18px;
+  border: 2px solid rgba(126, 89, 63, 0.46);
+  border-radius: 24px;
+  background: rgba(255, 249, 240, 0.95);
+  text-align: center;
+}
+
+.bill-verification-card__status-label {
+  color: rgba(122, 81, 54, 0.82);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.bill-verification-card__status {
+  font-size: clamp(32px, 4vw, 42px);
+  font-weight: 700;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.bill-verification-card__status--ready {
+  color: #3a8f4f;
+}
+
+.bill-verification-card__status--prep {
+  color: #df8f2d;
+}
+
+.bill-verification-card__status--cancelled {
+  color: #b15b56;
+}
+
+.bill-verification-card__status-note {
+  color: rgba(122, 81, 54, 0.78);
+  font-size: 14px;
+}
+
+.bill-verification-card__avatar {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border: 2px solid rgba(126, 89, 63, 0.56);
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fbf4ea, #e8d6c0);
+  flex-shrink: 0;
+}
+
+.bill-verification-card__avatar::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(126, 89, 63, 0.32);
+  transform: translateX(-50%);
+}
+
+.bill-verification-card__avatar::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  width: 54px;
+  height: 34px;
+  border-radius: 999px 999px 14px 14px;
+  background: rgba(126, 89, 63, 0.24);
+  transform: translateX(-50%);
+}
+
+.bill-verification-card__info-box {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 168px;
+  padding: 22px 24px;
+  border: 2px solid rgba(126, 89, 63, 0.5);
+  border-radius: 24px;
+  background: rgba(255, 252, 246, 0.92);
+}
+
+.bill-verification-card__info-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: #7a5136;
+  font-size: 19px;
+  line-height: 1.55;
+}
+
+.bill-verification-card__info-label {
+  min-width: 148px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.bill-verification-card__info-value {
+  color: #94684a;
+}
+
+.bill-verification-card__edit-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.bill-verification-card__edit-box--button {
+  width: 100%;
+  padding: 0;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.bill-verification-card__edit-box--button:focus-visible .bill-verification-card__edit-icon,
+.bill-verification-card__edit-box--button:focus-visible .bill-verification-card__edit-button {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(122, 81, 54, 0.18);
+}
+
+.bill-verification-card__edit-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 28px;
+  border: 2px solid rgba(126, 89, 63, 0.5);
+  background: rgba(255, 249, 240, 0.95);
+  color: #7a5136;
+  font-size: 60px;
+  line-height: 1;
+}
+
+.bill-verification-card__edit-button {
+  width: 100%;
+  padding: 14px 18px;
+  border: 2px solid rgba(126, 89, 63, 0.6);
+  border-radius: 18px;
+  background: rgba(255, 252, 246, 0.92);
+  color: #7a5136;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+}
+
+[data-theme="dark"] .bill-verification-panel,
+[data-theme="dark"] .bill-verification-card {
+  background: rgba(37, 29, 22, 0.92);
+  border-color: rgba(224, 199, 122, 0.42);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.36);
+}
+
+[data-theme="dark"] .bill-verification-panel--heading h1,
+[data-theme="dark"] .bill-verification-panel--status h2,
+[data-theme="dark"] .bill-verification-panel--status p,
+[data-theme="dark"] .bill-verification-panel__plus,
+[data-theme="dark"] .bill-verification-panel__title,
+[data-theme="dark"] .bill-verification-card__info-row,
+[data-theme="dark"] .bill-verification-card__edit-icon,
+[data-theme="dark"] .bill-verification-card__edit-button {
+  color: #f0debc;
+}
+
+[data-theme="dark"] .bill-verification-card__status-box,
+[data-theme="dark"] .bill-verification-card__info-box,
+[data-theme="dark"] .bill-verification-card__edit-icon,
+[data-theme="dark"] .bill-verification-card__edit-button,
+[data-theme="dark"] .bill-verification-card__avatar {
+  background: rgba(20, 17, 13, 0.88);
+  border-color: rgba(224, 199, 122, 0.34);
+}
+
+[data-theme="dark"] .bill-verification-card__status-label,
+[data-theme="dark"] .bill-verification-card__expiry,
+[data-theme="dark"] .bill-verification-card__info-value {
+  color: rgba(240, 222, 188, 0.82);
+}
+
+[data-theme="dark"] .bill-verification-card__avatar::before {
+  background: rgba(224, 199, 122, 0.42);
+}
+
+[data-theme="dark"] .bill-verification-card__avatar::after {
+  background: rgba(224, 199, 122, 0.3);
+}
+
+[data-theme="dark"] .bill-verification-panel--new-button:hover {
+  border-color: rgba(224, 199, 122, 0.62);
+  background: rgba(49, 38, 28, 0.96);
+}
+
+[data-theme="dark"] .bill-verification-panel--new-button:focus-visible {
+  box-shadow: 0 0 0 4px rgba(224, 199, 122, 0.22),
+    0 22px 42px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 960px) {
+  .bill-verification-panel--new {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .bill-verification-card {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .bill-verification-card__status-box,
+  .bill-verification-card__info-box,
+  .bill-verification-card__edit-box {
+    width: 100%;
+  }
+
+  .bill-verification-card__avatar {
+    width: 110px;
+    height: 110px;
+  }
+}
+
+@media (max-width: 640px) {
+  .bill-verification-page {
+    gap: 18px;
+  }
+
+  .bill-verification-page__hero,
+  .bill-verification-page__cards {
+    gap: 18px;
+  }
+
+  .bill-verification-panel--heading,
+  .bill-verification-panel--new,
+  .bill-verification-card {
+    border-radius: 24px;
+  }
+
+  .bill-verification-panel--heading {
+    min-height: 108px;
+    padding: 18px;
+  }
+
+  .bill-verification-panel--new {
+    min-height: 0;
+    padding: 20px 18px 24px;
+  }
+
+  .bill-verification-panel__plus {
+    font-size: 96px;
+  }
+
+  .bill-verification-card {
+    padding: 18px;
+    gap: 16px;
+  }
+
+  .bill-verification-card__status-box,
+  .bill-verification-card__info-box {
+    min-height: 0;
+    padding: 18px;
+  }
+
+  .bill-verification-card__info-row {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 18px;
+  }
+
+  .bill-verification-card__info-label {
+    min-width: 0;
+  }
+
+  .bill-verification-card__edit-icon {
+    width: 86px;
+    height: 86px;
+    font-size: 54px;
+  }
+
+  .bill-verification-card__edit-button {
+    font-size: 18px;
+  }
+}

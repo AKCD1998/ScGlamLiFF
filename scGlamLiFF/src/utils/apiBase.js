@@ -1,5 +1,4 @@
-const rawBase = import.meta.env.VITE_API_BASE_URL || "";
-const normalizedBase = rawBase.replace(/\/+$/, "");
+import { apiBaseUrl } from "../config/env";
 
 export const apiUrl = (path) => {
   if (!path) {
@@ -9,5 +8,5 @@ export const apiUrl = (path) => {
     return path;
   }
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return normalizedBase ? `${normalizedBase}${normalizedPath}` : normalizedPath;
+  return apiBaseUrl ? `${apiBaseUrl}${normalizedPath}` : normalizedPath;
 };
