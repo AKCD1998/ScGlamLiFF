@@ -152,6 +152,19 @@ describe("BranchDeviceStartupGate", () => {
     expect(screen.getByText("กรุณาเปิดผ่าน LINE")).toBeTruthy();
   });
 
+  it("keeps not-logged-in LIFF state separate from backend/token failures", async () => {
+    const error = new Error("LIFF_LOGIN_REQUIRED");
+    error.code = "LIFF_NOT_LOGGED_IN";
+    getMyBranchDeviceRegistrationMock.mockRejectedValue(error);
+
+    renderGuard();
+
+    expect(await screen.findByText("ต้องเข้าสู่ระบบ LINE")).toBeTruthy();
+    expect(
+      screen.getByText("ไม่พบ LIFF session สำหรับตรวจสอบเครื่อง")
+    ).toBeTruthy();
+  });
+
   it("submits first-time registration and refreshes into the ready state", async () => {
     getMyBranchDeviceRegistrationMock
       .mockResolvedValueOnce({

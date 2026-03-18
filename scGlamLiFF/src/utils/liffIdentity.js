@@ -1,6 +1,10 @@
 import liff from "@line/liff";
 import { liffId } from "../config/env";
-import { logBranchDeviceGuardDebug } from "./branchDeviceGuardDebug";
+import {
+  getBranchDeviceGuardRuntimeConfig,
+  logBranchDeviceGuardDebug,
+  summarizeToken
+} from "./branchDeviceGuardDebug";
 
 let liffInitPromise = null;
 
@@ -9,9 +13,17 @@ const emitLiffEvent = (onEvent, event) => {
   logBranchDeviceGuardDebug(event.type, event);
 };
 
+const createLiffRuntimeError = (message, code, details = null) => {
+  const error = new Error(message);
+  error.code = code;
+  error.details = details;
+  return error;
+};
+
 const requireLiffId = () => {
   if (!liffId) {
     logBranchDeviceGuardDebug("liff_missing_id", {
+      ...getBranchDeviceGuardRuntimeConfig(),
       hasLiffId: false
     });
     throw new Error("Missing VITE_LIFF_ID");
@@ -21,24 +33,31 @@ const requireLiffId = () => {
 export const initializeLiff = async ({ onEvent } = {}) => {
   requireLiffId();
   emitLiffEvent(onEvent, {
-    type: "liff_init_started"
+    type: "liff_init_started",
+    ...getBranchDeviceGuardRuntimeConfig()
   });
 
   if (!liffInitPromise) {
     liffInitPromise = liff.init({ liffId }).catch((error) => {
       liffInitPromise = null;
+      const wrappedError = createLiffRuntimeError(
+        error?.message || "LIFF init failed",
+        "LIFF_INIT_FAILED",
+        error
+      );
       emitLiffEvent(onEvent, {
-        type: "request_error",
-        operation: "lookup",
-        errorMessage: error?.message || "liff_init_failed"
+        type: "liff_init_failed",
+        errorMessage: wrappedError.message,
+        ...getBranchDeviceGuardRuntimeConfig()
       });
-      throw error;
+      throw wrappedError;
     });
   }
 
   await liffInitPromise;
   emitLiffEvent(onEvent, {
-    type: "liff_init_ready"
+    type: "liff_init_ready",
+    ...getBranchDeviceGuardRuntimeConfig()
   });
   return liff;
 };
@@ -49,11 +68,15 @@ export const ensureLiffReady = async ({ loginIfNeeded = false, onEvent } = {}) =
   emitLiffEvent(onEvent, {
     type: "liff_ready_state",
     inClient: liff.isInClient(),
-    isLoggedIn: liff.isLoggedIn()
+    isLoggedIn: liff.isLoggedIn(),
+    ...getBranchDeviceGuardRuntimeConfig()
   });
 
   if (!liff.isInClient()) {
-    throw new Error("LIFF_NOT_IN_CLIENT");
+    throw createLiffRuntimeError(
+      "LIFF_NOT_IN_CLIENT",
+      "LIFF_OUTSIDE_LINE_CLIENT"
+    );
   }
 
   if (!liff.isLoggedIn()) {
@@ -62,7 +85,10 @@ export const ensureLiffReady = async ({ loginIfNeeded = false, onEvent } = {}) =
       return null;
     }
 
-    throw new Error("LIFF_LOGIN_REQUIRED");
+    throw createLiffRuntimeError(
+      "LIFF_LOGIN_REQUIRED",
+      "LIFF_NOT_LOGGED_IN"
+    );
   }
 
   return liff;
@@ -91,8 +117,11 @@ export const getLiffIdentityTokens = async ({
   emitLiffEvent(onEvent, {
     type: "liff_token_state",
     hasIdToken: Boolean(tokens.idToken),
+    idTokenLength: summarizeToken(tokens.idToken).length,
     hasAccessToken: Boolean(tokens.accessToken),
-    liffAppIdPresent: Boolean(tokens.liffAppId)
+    accessTokenLength: summarizeToken(tokens.accessToken).length,
+    liffAppIdPresent: Boolean(tokens.liffAppId),
+    ...getBranchDeviceGuardRuntimeConfig()
   });
 
   return tokens;

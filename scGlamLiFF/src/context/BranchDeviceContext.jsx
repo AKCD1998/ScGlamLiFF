@@ -7,6 +7,7 @@ import {
   getMyBranchDeviceRegistration
 } from "../services/branchDeviceRegistrationService";
 import {
+  getBranchDeviceGuardRuntimeConfig,
   logBranchDeviceGuardDebug,
   summarizeBranchDevicePayload
 } from "../utils/branchDeviceGuardDebug";
@@ -15,7 +16,7 @@ const LOOKUP_URL = "/api/branch-device-registrations/me";
 const REGISTER_URL = "/api/branch-device-registrations";
 
 const BranchDeviceContext = createContext({
-  status: "request_never_started",
+  status: "loading",
   reasonCode: "",
   guardEnabled: false,
   branchId: "",
@@ -31,26 +32,39 @@ const BranchDeviceContext = createContext({
 
 const trimText = (value) => (typeof value === "string" ? value.trim() : "");
 
-const createDebugState = (overrides = {}) => ({
-  apiBaseUrl: apiBaseUrl || "(relative /api)",
-  liffIdPresent: Boolean(liffId),
-  liffReady: null,
-  inClient: null,
-  isLoggedIn: null,
-  hasIdToken: null,
-  hasAccessToken: null,
-  lastLookupStarted: false,
-  lastLookupUrl: LOOKUP_URL,
-  lastLookupStatus: null,
-  lastLookupResponse: null,
-  lastRegisterStarted: false,
-  lastRegisterUrl: REGISTER_URL,
-  lastRegisterStatus: null,
-  lastRegisterResponse: null,
-  lastGuardState: "request_never_started",
-  lastReasonCode: "",
-  ...overrides
-});
+const createDebugState = (overrides = {}) => {
+  const runtimeConfig = getBranchDeviceGuardRuntimeConfig();
+
+  return {
+    currentPageUrl: runtimeConfig.currentPageUrl,
+    apiBaseUrl: apiBaseUrl || "(relative /api)",
+    liffId: runtimeConfig.liffId || "",
+    liffIdPresent: Boolean(liffId),
+    liffReady: null,
+    inClient: null,
+    loggedIn: null,
+    hasIdToken: null,
+    idTokenLength: 0,
+    hasAccessToken: null,
+    accessTokenLength: 0,
+    authorizationHeaderAttached: false,
+    xLineIdTokenAttached: false,
+    xLineAccessTokenAttached: false,
+    usesConfiguredApiBase: null,
+    requestStarted: false,
+    lastRequestUrl: LOOKUP_URL,
+    lastResponseStatus: null,
+    lastResponseBody: null,
+    lastReason: "",
+    lastRegisterStarted: false,
+    lastRegisterUrl: REGISTER_URL,
+    lastRegisterStatus: null,
+    lastRegisterResponse: null,
+    lastGuardState: "loading",
+    lastReasonCode: "",
+    ...overrides
+  };
+};
 
 const createBaseState = ({
   status,
@@ -89,7 +103,7 @@ const createBypassedState = () =>
 
 const createInitialRealState = () =>
   createBaseState({
-    status: "request_never_started",
+    status: "loading",
     reasonCode: "",
     guardEnabled: true,
     debug: createDebugState()
@@ -100,6 +114,15 @@ const applyDebugEvent = (debugState, event = {}) => {
     ...(debugState || createDebugState())
   };
 
+  nextDebug.currentPageUrl =
+    trimText(event.currentPageUrl) || nextDebug.currentPageUrl || null;
+  nextDebug.apiBaseUrl = trimText(event.apiBaseUrl) || nextDebug.apiBaseUrl;
+  nextDebug.liffId = trimText(event.liffId) || nextDebug.liffId || "";
+  nextDebug.liffIdPresent =
+    typeof event.liffIdPresent === "boolean"
+      ? event.liffIdPresent
+      : nextDebug.liffIdPresent;
+
   switch (event.type) {
     case "liff_init_started":
       nextDebug.liffReady = false;
@@ -107,30 +130,92 @@ const applyDebugEvent = (debugState, event = {}) => {
     case "liff_init_ready":
       nextDebug.liffReady = true;
       break;
+    case "liff_init_failed":
+      nextDebug.liffReady = false;
+      nextDebug.lastReason = "liff_init_failed";
+      break;
     case "liff_ready_state":
       nextDebug.inClient =
         typeof event.inClient === "boolean" ? event.inClient : nextDebug.inClient;
-      nextDebug.isLoggedIn =
+      nextDebug.loggedIn =
         typeof event.isLoggedIn === "boolean"
           ? event.isLoggedIn
-          : nextDebug.isLoggedIn;
+          : nextDebug.loggedIn;
       break;
     case "liff_token_state":
       nextDebug.hasIdToken =
         typeof event.hasIdToken === "boolean"
           ? event.hasIdToken
           : nextDebug.hasIdToken;
+      nextDebug.idTokenLength =
+        typeof event.idTokenLength === "number"
+          ? event.idTokenLength
+          : nextDebug.idTokenLength;
       nextDebug.hasAccessToken =
         typeof event.hasAccessToken === "boolean"
           ? event.hasAccessToken
           : nextDebug.hasAccessToken;
+      nextDebug.accessTokenLength =
+        typeof event.accessTokenLength === "number"
+          ? event.accessTokenLength
+          : nextDebug.accessTokenLength;
+      break;
+    case "liff_identity_headers":
+    case "missing_token":
+      nextDebug.authorizationHeaderAttached =
+        typeof event.authorizationAttached === "boolean"
+          ? event.authorizationAttached
+          : nextDebug.authorizationHeaderAttached;
+      nextDebug.xLineIdTokenAttached =
+        typeof event.xLineIdTokenAttached === "boolean"
+          ? event.xLineIdTokenAttached
+          : nextDebug.xLineIdTokenAttached;
+      nextDebug.xLineAccessTokenAttached =
+        typeof event.xLineAccessTokenAttached === "boolean"
+          ? event.xLineAccessTokenAttached
+          : nextDebug.xLineAccessTokenAttached;
+      nextDebug.hasIdToken =
+        typeof event.hasIdToken === "boolean"
+          ? event.hasIdToken
+          : nextDebug.hasIdToken;
+      nextDebug.idTokenLength =
+        typeof event.idTokenLength === "number"
+          ? event.idTokenLength
+          : nextDebug.idTokenLength;
+      nextDebug.hasAccessToken =
+        typeof event.hasAccessToken === "boolean"
+          ? event.hasAccessToken
+          : nextDebug.hasAccessToken;
+      nextDebug.accessTokenLength =
+        typeof event.accessTokenLength === "number"
+          ? event.accessTokenLength
+          : nextDebug.accessTokenLength;
+      if (event.type === "missing_token") {
+        nextDebug.lastReason = "missing_token";
+      }
       break;
     case "request_start":
       if (event.operation === "lookup") {
-        nextDebug.lastLookupStarted = true;
-        nextDebug.lastLookupUrl = event.url || nextDebug.lastLookupUrl;
-        nextDebug.lastLookupStatus = null;
-        nextDebug.lastLookupResponse = null;
+        nextDebug.requestStarted = true;
+        nextDebug.lastRequestUrl = event.url || nextDebug.lastRequestUrl;
+        nextDebug.lastResponseStatus = null;
+        nextDebug.lastResponseBody = null;
+        nextDebug.authorizationHeaderAttached =
+          typeof event.authorizationAttached === "boolean"
+            ? event.authorizationAttached
+            : nextDebug.authorizationHeaderAttached;
+        nextDebug.xLineIdTokenAttached =
+          typeof event.xLineIdTokenAttached === "boolean"
+            ? event.xLineIdTokenAttached
+            : nextDebug.xLineIdTokenAttached;
+        nextDebug.xLineAccessTokenAttached =
+          typeof event.xLineAccessTokenAttached === "boolean"
+            ? event.xLineAccessTokenAttached
+            : nextDebug.xLineAccessTokenAttached;
+        nextDebug.usesConfiguredApiBase =
+          typeof event.usesConfiguredApiBase === "boolean"
+            ? event.usesConfiguredApiBase
+            : nextDebug.usesConfiguredApiBase;
       }
       if (event.operation === "register") {
         nextDebug.lastRegisterStarted = true;
@@ -141,8 +226,9 @@ const applyDebugEvent = (debugState, event = {}) => {
       break;
     case "response":
       if (event.operation === "lookup") {
-        nextDebug.lastLookupStatus = event.status ?? null;
-        nextDebug.lastLookupResponse = summarizeBranchDevicePayload(event.body);
+        nextDebug.lastResponseStatus = event.status ?? null;
+        nextDebug.lastResponseBody = summarizeBranchDevicePayload(event.body);
+        nextDebug.lastReason = trimText(event.body?.reason) || nextDebug.lastReason;
       }
       if (event.operation === "register") {
         nextDebug.lastRegisterStatus = event.status ?? null;
@@ -151,10 +237,14 @@ const applyDebugEvent = (debugState, event = {}) => {
       break;
     case "request_error":
       if (event.operation === "lookup") {
-        nextDebug.lastLookupStatus = event.status ?? null;
-        nextDebug.lastLookupResponse = {
+        nextDebug.lastResponseStatus = event.status ?? null;
+        nextDebug.lastResponseBody = {
           error: trimText(event.errorMessage) || "request_failed"
         };
+        nextDebug.lastReason =
+          trimText(event.reason) ||
+          trimText(event.errorMessage) ||
+          nextDebug.lastReason;
       }
       if (event.operation === "register") {
         nextDebug.lastRegisterStatus = event.status ?? null;
@@ -215,7 +305,8 @@ const createUiStateFromLookupSnapshot = (snapshot, currentState) => {
           : reasonCode === "inactive"
             ? "inactive"
             : "not_registered",
-      lastReasonCode: reasonCode
+      lastReasonCode: reasonCode,
+      lastReason: reasonCode
     }
   });
 
@@ -233,13 +324,23 @@ const mapLookupErrorToState = (error, currentState) => {
   let reasonCode = "backend_error";
   let errorMessage = error?.message || "ตรวจสอบอุปกรณ์ไม่สำเร็จ";
 
-  if (error?.message === "LIFF_NOT_IN_CLIENT") {
-    status = "request_never_started";
-    reasonCode = "outside_line";
+  if (error?.code === "LIFF_INIT_FAILED") {
+    status = "liff_init_failed";
+    reasonCode = "liff_init_failed";
+    errorMessage = "เริ่มต้น LIFF ไม่สำเร็จ";
+  } else if (
+    error?.code === "LIFF_OUTSIDE_LINE_CLIENT" ||
+    error?.message === "LIFF_NOT_IN_CLIENT"
+  ) {
+    status = "outside_line_client";
+    reasonCode = "outside_line_client";
     errorMessage = "กรุณาเปิดผ่าน LINE";
-  } else if (error?.message === "LIFF_LOGIN_REQUIRED") {
-    status = "request_never_started";
-    reasonCode = "login_required";
+  } else if (
+    error?.code === "LIFF_NOT_LOGGED_IN" ||
+    error?.message === "LIFF_LOGIN_REQUIRED"
+  ) {
+    status = "not_logged_in";
+    reasonCode = "not_logged_in";
     errorMessage = "ไม่พบ LIFF session สำหรับตรวจสอบเครื่อง";
   } else if (error?.message === "Missing VITE_LIFF_ID") {
     status = "backend_error";
@@ -276,7 +377,8 @@ const mapLookupErrorToState = (error, currentState) => {
     debug: {
       ...(currentState?.debug || createDebugState()),
       lastGuardState: status,
-      lastReasonCode: reasonCode
+      lastReasonCode: reasonCode,
+      lastReason: reasonCode
     }
   });
 
@@ -299,6 +401,10 @@ const getRegisterErrorMessage = (error) => {
 
     if (reasonCode === "invalid_token") {
       return "LIFF token ไม่ผ่านการยืนยัน จึงลงทะเบียนอุปกรณ์ไม่ได้";
+    }
+
+    if (reasonCode === "missing_token") {
+      return "ไม่พบ LIFF token สำหรับยืนยันเครื่องนี้";
     }
 
     if (reasonCode === "missing_branch_id" || error.status === 400) {
@@ -435,7 +541,7 @@ export function BranchDeviceProvider({ children }) {
         submitError: getRegisterErrorMessage(error),
         debug: {
           ...((current && current.debug) || createDebugState()),
-          lastGuardState: current?.status || "request_never_started",
+          lastGuardState: current?.status || "loading",
           lastReasonCode: current?.reasonCode || ""
         }
       }));

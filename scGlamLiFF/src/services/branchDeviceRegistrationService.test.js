@@ -169,4 +169,18 @@ describe("branchDeviceRegistrationService", () => {
       line_user_id: "U1234567890"
     });
   });
+
+  it("fails before fetch when LIFF returns no id token and no access token", async () => {
+    getLiffIdentityTokensMock.mockResolvedValue({
+      idToken: "",
+      accessToken: "",
+      liffAppId: "1650000000-test"
+    });
+
+    await expect(getMyBranchDeviceRegistration()).rejects.toMatchObject({
+      status: 400,
+      reason: "missing_token"
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

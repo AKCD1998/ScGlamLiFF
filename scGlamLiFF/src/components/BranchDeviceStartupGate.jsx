@@ -15,15 +15,27 @@ function BranchDeviceGuardDebugPanel({ debug, status, reasonCode }) {
 
   const text = JSON.stringify(
     {
+      currentPageUrl: debug?.currentPageUrl || null,
       apiBaseUrl: debug?.apiBaseUrl || null,
+      liffId: debug?.liffId || null,
       liffReady: debug?.liffReady ?? null,
       inClient: debug?.inClient ?? null,
-      isLoggedIn: debug?.isLoggedIn ?? null,
+      loggedIn: debug?.loggedIn ?? null,
       hasIdToken: debug?.hasIdToken ?? null,
+      idTokenLength: debug?.idTokenLength ?? 0,
       hasAccessToken: debug?.hasAccessToken ?? null,
-      lastLookupStarted: debug?.lastLookupStarted ?? null,
-      lastLookupStatus: debug?.lastLookupStatus ?? null,
-      lastLookupResponse: debug?.lastLookupResponse ?? null,
+      accessTokenLength: debug?.accessTokenLength ?? 0,
+      authorizationHeaderAttached:
+        debug?.authorizationHeaderAttached ?? null,
+      xLineIdTokenAttached: debug?.xLineIdTokenAttached ?? null,
+      xLineAccessTokenAttached:
+        debug?.xLineAccessTokenAttached ?? null,
+      usesConfiguredApiBase: debug?.usesConfiguredApiBase ?? null,
+      requestStarted: debug?.requestStarted ?? null,
+      lastRequestUrl: debug?.lastRequestUrl ?? null,
+      lastResponseStatus: debug?.lastResponseStatus ?? null,
+      lastResponseBody: debug?.lastResponseBody ?? null,
+      lastReason: debug?.lastReason ?? null,
       lastGuardState: status,
       lastReasonCode: reasonCode
     },
@@ -213,11 +225,43 @@ export default function BranchDeviceStartupGate({ children }) {
     return <BranchDeviceInactivePanel />;
   }
 
-  if (status === "request_never_started") {
+  if (status === "outside_line_client") {
     return (
       <BranchDevicePanel
         title="ยังไม่เริ่มตรวจสอบอุปกรณ์"
         message={errorMessage || "เปิดผ่าน LINE แล้วลองใหม่อีกครั้ง"}
+        debug={debug}
+        status={status}
+        reasonCode={reasonCode}
+      >
+        <button type="button" onClick={() => void refreshRegistration()}>
+          ลองใหม่
+        </button>
+      </BranchDevicePanel>
+    );
+  }
+
+  if (status === "not_logged_in") {
+    return (
+      <BranchDevicePanel
+        title="ต้องเข้าสู่ระบบ LINE"
+        message={errorMessage || "กรุณาเข้าสู่ระบบ LINE แล้วลองใหม่อีกครั้ง"}
+        debug={debug}
+        status={status}
+        reasonCode={reasonCode}
+      >
+        <button type="button" onClick={() => void refreshRegistration()}>
+          ลองใหม่
+        </button>
+      </BranchDevicePanel>
+    );
+  }
+
+  if (status === "liff_init_failed") {
+    return (
+      <BranchDevicePanel
+        title="เริ่มต้น LIFF ไม่สำเร็จ"
+        message={errorMessage || "ไม่สามารถเริ่มต้น LIFF ได้"}
         debug={debug}
         status={status}
         reasonCode={reasonCode}

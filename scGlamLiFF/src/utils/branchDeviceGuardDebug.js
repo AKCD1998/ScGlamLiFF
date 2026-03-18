@@ -1,7 +1,7 @@
 import { apiBaseUrl, liffId } from "../config/env";
 import { isDebugEnabled } from "./debug";
 
-const LOG_PREFIX = "[BranchDeviceGuard]";
+const LOG_PREFIX = "[LIFFGuardFrontend]";
 
 const trimText = (value) => (typeof value === "string" ? value.trim() : "");
 
@@ -20,6 +20,25 @@ const maskLineUserId = (value) => {
 };
 
 export const isBranchDeviceGuardDebugEnabled = () => isDebugEnabled();
+
+export const getCurrentPageUrl = () =>
+  typeof window !== "undefined" ? trimText(window.location?.href) || null : null;
+
+export const summarizeToken = (value) => {
+  const normalized = trimText(value);
+
+  return {
+    present: Boolean(normalized),
+    length: normalized.length || 0
+  };
+};
+
+export const summarizeLiffIdentityHeaders = (headers = {}) => ({
+  authorizationAttached: Boolean(trimText(headers?.Authorization)),
+  xLineIdTokenAttached: Boolean(trimText(headers?.["X-Line-Id-Token"])),
+  xLineAccessTokenAttached: Boolean(trimText(headers?.["X-Line-Access-Token"])),
+  xLiffAppIdAttached: Boolean(trimText(headers?.["X-Liff-App-Id"]))
+});
 
 export const summarizeBranchDevicePayload = (payload) => {
   if (!payload || typeof payload !== "object") {
@@ -62,6 +81,8 @@ export const logBranchDeviceGuardDebug = (event, payload = {}) => {
 };
 
 export const getBranchDeviceGuardRuntimeConfig = () => ({
+  currentPageUrl: getCurrentPageUrl(),
   apiBaseUrl: apiBaseUrl || "(relative /api)",
+  liffId: liffId || "",
   liffIdPresent: Boolean(liffId)
 });

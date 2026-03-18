@@ -1,11 +1,15 @@
+import { apiBaseUrl } from "../config/env";
 import { apiUrl } from "../utils/apiBase";
 import {
   buildLiffIdentityHeaders,
   getLiffIdentityTokens
 } from "../utils/liffIdentity";
 import {
+  getBranchDeviceGuardRuntimeConfig,
   logBranchDeviceGuardDebug,
-  summarizeBranchDevicePayload
+  summarizeBranchDevicePayload,
+  summarizeLiffIdentityHeaders,
+  summarizeToken
 } from "../utils/branchDeviceGuardDebug";
 
 const parseJsonSafely = async (response) => {
@@ -115,11 +119,50 @@ const emitRequestEvent = (onEvent, event) => {
   logBranchDeviceGuardDebug(event.type, event);
 };
 
+const buildMissingTokenError = () =>
+  new BranchDeviceRegistrationApiError("Missing LINE LIFF token", {
+    status: 400,
+    payload: {
+      success: false,
+      reason: "missing_token",
+      error: "Missing LINE LIFF token"
+    }
+  });
+
 const getLiffIdentityRequest = async ({ onEvent } = {}) => {
   const tokens = (await getLiffIdentityTokens({ onEvent })) || {};
+  const headers = buildLiffIdentityHeaders(tokens);
+  const tokenSummary = {
+    idToken: summarizeToken(tokens?.idToken),
+    accessToken: summarizeToken(tokens?.accessToken)
+  };
+  const headerSummary = summarizeLiffIdentityHeaders(headers);
+
+  emitRequestEvent(onEvent, {
+    type: "liff_identity_headers",
+    ...getBranchDeviceGuardRuntimeConfig(),
+    ...headerSummary,
+    hasIdToken: tokenSummary.idToken.present,
+    idTokenLength: tokenSummary.idToken.length,
+    hasAccessToken: tokenSummary.accessToken.present,
+    accessTokenLength: tokenSummary.accessToken.length
+  });
+
+  if (!headerSummary.xLineIdTokenAttached && !headerSummary.authorizationAttached) {
+    emitRequestEvent(onEvent, {
+      type: "missing_token",
+      ...getBranchDeviceGuardRuntimeConfig(),
+      ...headerSummary,
+      hasIdToken: tokenSummary.idToken.present,
+      idTokenLength: tokenSummary.idToken.length,
+      hasAccessToken: tokenSummary.accessToken.present,
+      accessTokenLength: tokenSummary.accessToken.length
+    });
+    throw buildMissingTokenError();
+  }
 
   return {
-    headers: buildLiffIdentityHeaders(tokens),
+    headers,
     liffAppId: trimText(tokens?.liffAppId)
   };
 };
@@ -160,12 +203,17 @@ const requestJson = async (
   } = {}
 ) => {
   const url = apiUrl(path);
+  const headerSummary = summarizeLiffIdentityHeaders(headers);
+  const usesConfiguredApiBase = Boolean(apiBaseUrl) && url.startsWith(apiBaseUrl);
 
   emitRequestEvent(onEvent, {
     type: "request_start",
     operation,
     method,
-    url
+    url,
+    ...getBranchDeviceGuardRuntimeConfig(),
+    usesConfiguredApiBase,
+    ...headerSummary
   });
 
   let response;
@@ -186,6 +234,8 @@ const requestJson = async (
       operation,
       method,
       url,
+      ...getBranchDeviceGuardRuntimeConfig(),
+      usesConfiguredApiBase,
       errorMessage: error?.message || "request_failed"
     });
     throw error;
@@ -198,6 +248,8 @@ const requestJson = async (
     operation,
     method,
     url,
+    ...getBranchDeviceGuardRuntimeConfig(),
+    usesConfiguredApiBase,
     status: response.status,
     ok: response.ok,
     body: payload
