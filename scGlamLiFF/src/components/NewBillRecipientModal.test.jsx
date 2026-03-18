@@ -11,7 +11,8 @@ const {
   getCalendarDaysMock,
   createAppointmentDraftMock,
   updateAppointmentDraftMock,
-  submitAppointmentDraftMock
+  submitAppointmentDraftMock,
+  processReceiptImageMock
 } = vi.hoisted(() => ({
   createAppointmentMock: vi.fn(),
   getAppointmentsQueueMock: vi.fn(),
@@ -19,7 +20,8 @@ const {
   getCalendarDaysMock: vi.fn(),
   createAppointmentDraftMock: vi.fn(),
   updateAppointmentDraftMock: vi.fn(),
-  submitAppointmentDraftMock: vi.fn()
+  submitAppointmentDraftMock: vi.fn(),
+  processReceiptImageMock: vi.fn()
 }));
 
 vi.mock("../services/appointmentsService", () => {
@@ -65,7 +67,16 @@ vi.mock("../services/appointmentDraftService", () => {
 });
 
 vi.mock("../services/receiptOcrService", () => ({
-  processReceiptImage: vi.fn()
+  ReceiptOcrApiError: class ReceiptOcrApiError extends Error {
+    constructor(message, { status, reason, payload } = {}) {
+      super(message);
+      this.name = "ReceiptOcrApiError";
+      this.status = status ?? 0;
+      this.reason = reason ?? "";
+      this.payload = payload ?? null;
+    }
+  },
+  processReceiptImage: processReceiptImageMock
 }));
 
 const bookingOptions = [
@@ -166,6 +177,7 @@ describe("NewBillRecipientModal draft flow", () => {
     createAppointmentDraftMock.mockReset();
     updateAppointmentDraftMock.mockReset();
     submitAppointmentDraftMock.mockReset();
+    processReceiptImageMock.mockReset();
 
     getBookingOptionsMock.mockResolvedValue(bookingOptions);
     getCalendarDaysMock.mockResolvedValue([]);

@@ -30,7 +30,10 @@ import {
   buildAppointmentDraftReadinessRecord,
   getAppointmentDraftDisplayStatus
 } from "../services/appointmentDraftReadiness";
-import { processReceiptImage } from "../services/receiptOcrService";
+import {
+  processReceiptImage,
+  ReceiptOcrApiError
+} from "../services/receiptOcrService";
 import "./NewBillRecipientModal.css";
 
 const recipientFields = [
@@ -320,8 +323,29 @@ const createReceiptOcrResultFromDraft = (draft) => {
   };
 };
 
-const getReceiptErrorMessage = (error) =>
-  error?.message || "ไม่สามารถอ่านข้อมูลจากใบเสร็จได้ ลองใช้รูปใหม่อีกครั้ง";
+const getReceiptErrorMessage = (error) => {
+  if (error instanceof ReceiptOcrApiError) {
+    if (error.reason === "missing_backend_endpoint") {
+      return "Backend SSOT ยังไม่มี endpoint OCR ใบเสร็จ จึงยังอ่านจากรูปจริงไม่ได้";
+    }
+
+    if (error.reason === "network_error") {
+      return "เชื่อมต่อ OCR backend ไม่ได้ กรุณาลองใหม่อีกครั้ง";
+    }
+
+    if (error.reason === "malformed_response") {
+      return "OCR backend ตอบกลับมาไม่ครบ จึงยังอ่านข้อมูลใบเสร็จไม่ได้";
+    }
+
+    if (error.reason === "auth_required") {
+      return "ยังไม่ได้เข้าสู่ระบบพนักงาน จึงเรียก OCR backend ไม่ได้";
+    }
+
+    return error.message || "ไม่สามารถอ่านข้อมูลจากใบเสร็จได้ ลองใช้รูปใหม่อีกครั้ง";
+  }
+
+  return error?.message || "ไม่สามารถอ่านข้อมูลจากใบเสร็จได้ ลองใช้รูปใหม่อีกครั้ง";
+};
 
 const getBookingOptionsErrorMessage = (error) => {
   if (error instanceof AppointmentsApiError && error.status === 401) {
@@ -1009,15 +1033,16 @@ function NewBillRecipientModal({
     try {
       const result = await processReceiptImage(selectedReceiptFile);
       setReceiptOcrResult(result);
-      setReceiptStage("success");
+      setReceiptStage(result?.source === "mock" ? "mock" : "success");
     } catch (error) {
+      setReceiptOcrResult(null);
       setReceiptOcrError(getReceiptErrorMessage(error));
       setReceiptStage("error");
     }
   };
 
   const renderReceiptIntakePanel = () => {
-    if (receiptStage === "success" && receiptOcrResult) {
+    if ((receiptStage === "success" || receiptStage === "mock") && receiptOcrResult) {
       return (
         <div className="new-bill-recipient-modal__receipt-summary">
           <div className="new-bill-recipient-modal__proof-tile">
@@ -1287,6 +1312,8 @@ function NewBillRecipientModal({
   const isDraftBusy = isActionBusy && activeAction === "draft-save";
   const isSubmitLocked =
     isActionBusy || (submitStatus === "success" && activeAction !== "draft-save");
+  const isReceiptOcrResolved =
+    receiptStage === "success" || receiptStage === "mock";
   const hasReceiptAttempt = Boolean(selectedReceiptFile);
   const currentDraftDisplayStatus = currentDraftId
     ? getAppointmentDraftDisplayStatus(
@@ -1309,7 +1336,7 @@ function NewBillRecipientModal({
       return "กรุณารอให้ระบบอ่านข้อมูลใบเสร็จให้เสร็จก่อน";
     }
 
-    if (selectedReceiptFile && receiptStage !== "success") {
+    if (selectedReceiptFile && !isReceiptOcrResolved) {
       return "กรุณายืนยันข้อมูลใบเสร็จให้เสร็จก่อนบันทึก";
     }
 
@@ -1368,7 +1395,7 @@ function NewBillRecipientModal({
       return "กรุณารอให้ระบบอ่านข้อมูลใบเสร็จให้เสร็จก่อน";
     }
 
-    if (selectedReceiptFile && receiptStage !== "success") {
+    if (selectedReceiptFile && !isReceiptOcrResolved) {
       return "กรุณายืนยันข้อมูลใบเสร็จให้เสร็จก่อนบันทึกร่าง";
     }
 
