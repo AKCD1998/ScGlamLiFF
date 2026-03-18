@@ -18,6 +18,7 @@ const createDebugState = (overrides = {}) => ({
   isInClient: null,
   isLoggedIn: null,
   hasIdToken: null,
+  hasAccessToken: null,
   step: "init",
   ...overrides
 });
@@ -114,6 +115,9 @@ export function AuthProvider({ children }) {
             isInClient: liff.isInClient(),
             isLoggedIn: liff.isLoggedIn(),
             hasIdToken: Boolean(liff.getIDToken()),
+            hasAccessToken: Boolean(
+              typeof liff.getAccessToken === "function" ? liff.getAccessToken() : ""
+            ),
             step: "ready"
           })
         });
@@ -131,6 +135,7 @@ export function AuthProvider({ children }) {
               isInClient: false,
               isLoggedIn: false,
               hasIdToken: false,
+              hasAccessToken: false,
               step: "blocked_not_in_client"
             })
           });

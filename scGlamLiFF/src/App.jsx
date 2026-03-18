@@ -98,6 +98,7 @@ function AuthGate({ children }) {
     isInClient: debug?.isInClient ?? null,
     isLoggedIn: debug?.isLoggedIn ?? null,
     hasIdToken: debug?.hasIdToken ?? null,
+    hasAccessToken: debug?.hasAccessToken ?? null,
     error: error?.message || null
   };
   const debugText = JSON.stringify(debugPayload, null, 2);

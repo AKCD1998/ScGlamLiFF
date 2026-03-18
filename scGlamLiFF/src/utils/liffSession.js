@@ -1,13 +1,41 @@
 import liff from "@line/liff";
-import { apiUrl } from "./apiBase";
 import {
   getLiffIdentityTokens,
   initializeLiff
 } from "./liffIdentity";
+import {
+  getBranchDeviceGuardRuntimeConfig,
+  logBranchDeviceGuardDebug,
+  summarizeToken
+} from "./branchDeviceGuardDebug";
+
+const trimText = (value) => (typeof value === "string" ? value.trim() : "");
+
+const getDecodedIdToken = () =>
+  typeof liff.getDecodedIDToken === "function" ? liff.getDecodedIDToken() || null : null;
+
+const getProfileSafely = async () => {
+  if (typeof liff.getProfile !== "function") {
+    return null;
+  }
+
+  try {
+    return await liff.getProfile();
+  } catch (error) {
+    logBranchDeviceGuardDebug("auth_profile_lookup_failed", {
+      ...getBranchDeviceGuardRuntimeConfig(),
+      errorMessage: error?.message || "profile_lookup_failed"
+    });
+    return null;
+  }
+};
 
 export const initializeLIFFAndGetUser = async (onStep) => {
   onStep?.({
     step: "init_start"
+  });
+  logBranchDeviceGuardDebug("auth_session_bootstrap_started", {
+    ...getBranchDeviceGuardRuntimeConfig()
   });
 
   await initializeLiff();
@@ -61,34 +89,67 @@ export const initializeLIFFAndGetUser = async (onStep) => {
   }
 
   const identityTokens = await getLiffIdentityTokens();
-  const idToken = identityTokens?.idToken || "";
-  if (!idToken) {
-    throw new Error("Missing LINE ID token");
-  }
+  const idToken = trimText(identityTokens?.idToken);
+  const accessToken = trimText(identityTokens?.accessToken);
 
-  onStep?.({ step: "token_ready", hasIdToken: Boolean(idToken) });
-
-  const sessionUrl = apiUrl("/api/liff/session");
-  console.log("POST", sessionUrl);
-  const response = await fetch(sessionUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken })
+  onStep?.({
+    step: "token_ready",
+    hasIdToken: Boolean(idToken),
+    hasAccessToken: Boolean(accessToken)
+  });
+  logBranchDeviceGuardDebug("auth_token_state", {
+    ...getBranchDeviceGuardRuntimeConfig(),
+    hasIdToken: Boolean(idToken),
+    idTokenLength: summarizeToken(idToken).length,
+    hasAccessToken: Boolean(accessToken),
+    accessTokenLength: summarizeToken(accessToken).length
   });
 
-  if (!response.ok) {
-    const errorPayload = await response.json().catch(() => ({}));
-    const payloadText = JSON.stringify(errorPayload);
-    throw new Error(
-      `Failed to verify LINE session (${response.status}): ${payloadText}`
-    );
+  if (!idToken && !accessToken) {
+    throw new Error("Missing LINE LIFF token");
   }
 
-  const data = await response.json();
-  onStep?.({ step: "session_verified" });
+  const decodedIdToken = getDecodedIdToken();
+  const profile = await getProfileSafely();
+  const lineUserId =
+    trimText(decodedIdToken?.sub || decodedIdToken?.userId) ||
+    trimText(profile?.userId);
+  const displayName =
+    trimText(decodedIdToken?.name) ||
+    trimText(profile?.displayName) ||
+    "LINE User";
+  const pictureUrl =
+    trimText(decodedIdToken?.picture) ||
+    trimText(profile?.pictureUrl) ||
+    "";
+
+  if (!lineUserId) {
+    throw new Error("Unable to resolve LINE user id from LIFF session");
+  }
+
+  onStep?.({
+    step: "session_ready_local",
+    hasIdToken: Boolean(idToken),
+    hasAccessToken: Boolean(accessToken),
+    hasDecodedIdToken: Boolean(decodedIdToken),
+    hasProfile: Boolean(profile)
+  });
+  logBranchDeviceGuardDebug("auth_session_local_identity", {
+    ...getBranchDeviceGuardRuntimeConfig(),
+    hasIdToken: Boolean(idToken),
+    idTokenLength: summarizeToken(idToken).length,
+    hasAccessToken: Boolean(accessToken),
+    accessTokenLength: summarizeToken(accessToken).length,
+    hasDecodedIdToken: Boolean(decodedIdToken),
+    hasProfile: Boolean(profile),
+    resolvedLineUserIdLength: lineUserId.length
+  });
+
   return {
     mode: "real",
-    lineUserId: data.lineUserId,
-    displayName: data.displayName || "LINE User"
+    lineUserId,
+    displayName,
+    pictureUrl,
+    statusMessage: "LIFF session ready"
   };
 };
