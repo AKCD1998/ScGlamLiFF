@@ -79,6 +79,16 @@ const bookingOptions = [
   }
 ];
 
+const labelMatchers = {
+  name: /ชื่อ-นามสกุล/,
+  phone: /เบอร์โทร/,
+  branch: /สาขา/,
+  bookingOption: /โปรโมชั่น \/ บริการ/,
+  bookingDatePicker: /เลือกวันที่จอง/,
+  bookingTimePicker: /เลือกเวลาที่นัดจองนวดหน้า/,
+  provider: /ชื่อผู้ให้บริการ/
+};
+
 const baseDraft = {
   id: "draft-uuid",
   status: "draft",
@@ -100,28 +110,35 @@ const baseDraft = {
   created_at: "2026-03-17T10:00:00.000Z"
 };
 
-const renderModal = (props = {}) =>
-  render(
-    <NewBillRecipientModal
-      open
-      onClose={vi.fn()}
-      onDraftChange={vi.fn()}
-      {...props}
-    />
-  );
+const renderModal = (props = {}) => {
+  const { onClose = vi.fn(), onDraftChange = vi.fn(), ...restProps } = props;
+
+  return {
+    onClose,
+    onDraftChange,
+    ...render(
+      <NewBillRecipientModal
+        open
+        onClose={onClose}
+        onDraftChange={onDraftChange}
+        {...restProps}
+      />
+    )
+  };
+};
 
 const fillDraftBaseFields = async () => {
-  fireEvent.change(screen.getByLabelText("ชื่อ-นามสกุล"), {
+  fireEvent.change(screen.getByLabelText(labelMatchers.name), {
     target: { value: "ลูกค้าทดสอบ" }
   });
-  fireEvent.change(screen.getByLabelText("เบอร์โทร"), {
+  fireEvent.change(screen.getByLabelText(labelMatchers.phone), {
     target: { value: "081-234-5678" }
   });
-  fireEvent.change(screen.getByLabelText("สาขา"), {
+  fireEvent.change(screen.getByLabelText(labelMatchers.branch), {
     target: { value: "branch-003" }
   });
 
-  const bookingSelect = await screen.findByLabelText("โปรโมชั่น / บริการ");
+  const bookingSelect = await screen.findByLabelText(labelMatchers.bookingOption);
   fireEvent.change(bookingSelect, {
     target: { value: "package:package-uuid" }
   });
@@ -129,13 +146,13 @@ const fillDraftBaseFields = async () => {
 
 const fillCompleteBookingFields = async () => {
   await fillDraftBaseFields();
-  fireEvent.change(screen.getByLabelText("เลือกวันที่จอง"), {
+  fireEvent.change(screen.getByLabelText(labelMatchers.bookingDatePicker), {
     target: { value: "2030-03-20" }
   });
-  fireEvent.change(screen.getByLabelText("เลือกเวลาที่นัดจองนวดหน้า"), {
+  fireEvent.change(screen.getByLabelText(labelMatchers.bookingTimePicker), {
     target: { value: "14:00" }
   });
-  fireEvent.change(screen.getByLabelText("ชื่อผู้ให้บริการ"), {
+  fireEvent.change(screen.getByLabelText(labelMatchers.provider), {
     target: { value: "โบว์" }
   });
 };
@@ -206,13 +223,13 @@ describe("NewBillRecipientModal draft flow", () => {
 
     await waitFor(() => expect(createAppointmentDraftMock).toHaveBeenCalledTimes(1));
 
-    fireEvent.change(screen.getByLabelText("เลือกวันที่จอง"), {
+    fireEvent.change(screen.getByLabelText(labelMatchers.bookingDatePicker), {
       target: { value: "2030-03-20" }
     });
-    fireEvent.change(screen.getByLabelText("เลือกเวลาที่นัดจองนวดหน้า"), {
+    fireEvent.change(screen.getByLabelText(labelMatchers.bookingTimePicker), {
       target: { value: "14:00" }
     });
-    fireEvent.change(screen.getByLabelText("ชื่อผู้ให้บริการ"), {
+    fireEvent.change(screen.getByLabelText(labelMatchers.provider), {
       target: { value: "โบว์" }
     });
 
@@ -239,6 +256,17 @@ describe("NewBillRecipientModal draft flow", () => {
     expect(submitAppointmentDraftMock).not.toHaveBeenCalled();
   });
 
+  it("keeps the save button disabled until all required fields are complete", async () => {
+    renderModal();
+
+    const saveButton = screen.getByRole("button", { name: "บันทึก" });
+    expect(saveButton.disabled).toBe(true);
+
+    await fillCompleteBookingFields();
+
+    expect(screen.getByRole("button", { name: "บันทึก" }).disabled).toBe(false);
+  });
+
   it("hydrates an existing draft into the modal form when opened from the draft list", async () => {
     renderModal({
       initialDraft: {
@@ -249,17 +277,17 @@ describe("NewBillRecipientModal draft flow", () => {
     });
 
     await waitFor(() =>
-      expect(screen.getByLabelText("โปรโมชั่น / บริการ").value).toBe(
+      expect(screen.getByLabelText(labelMatchers.bookingOption).value).toBe(
         "package:package-uuid"
       )
     );
 
-    expect(screen.getByLabelText("ชื่อ-นามสกุล").value).toBe("ลูกค้าทดสอบ");
-    expect(screen.getByLabelText("เบอร์โทร").value).toBe("0812345678");
-    expect(screen.getByLabelText("สาขา").value).toBe("branch-003");
-    expect(screen.getByLabelText("เลือกวันที่จอง").value).toBe("2030-03-20");
-    expect(screen.getByLabelText("เลือกเวลาที่นัดจองนวดหน้า").value).toBe("14:00");
-    expect(screen.getByLabelText("ชื่อผู้ให้บริการ").value).toBe("โบว์");
+    expect(screen.getByLabelText(labelMatchers.name).value).toBe("ลูกค้าทดสอบ");
+    expect(screen.getByLabelText(labelMatchers.phone).value).toBe("0812345678");
+    expect(screen.getByLabelText(labelMatchers.branch).value).toBe("branch-003");
+    expect(screen.getByLabelText(labelMatchers.bookingDatePicker).value).toBe("2030-03-20");
+    expect(screen.getByLabelText(labelMatchers.bookingTimePicker).value).toBe("14:00");
+    expect(screen.getByLabelText(labelMatchers.provider).value).toBe("โบว์");
     await waitFor(() =>
       expect(screen.getByText("สถานะร่างตอนนี้: พร้อมจอง")).toBeTruthy()
     );
@@ -274,16 +302,37 @@ describe("NewBillRecipientModal draft flow", () => {
     });
 
     await waitFor(() =>
-      expect(screen.getByLabelText("โปรโมชั่น / บริการ").value).toBe(
+      expect(screen.getByLabelText(labelMatchers.bookingOption).value).toBe(
         "package:package-uuid"
       )
     );
 
-    expect(screen.getByLabelText("สาขา").value).toBe("branch-external-777");
+    expect(screen.getByLabelText(labelMatchers.branch).value).toBe("branch-external-777");
     expect(
       screen.getByRole("option", {
         name: "สาขาที่บันทึกไว้ (branch-external-777)"
       })
     ).toBeTruthy();
+  });
+
+  it("asks for confirmation before discarding entered data from the cancel button", async () => {
+    const onClose = vi.fn();
+    const confirmSpy = vi.spyOn(window, "confirm");
+    confirmSpy.mockReturnValueOnce(false).mockReturnValueOnce(true);
+
+    renderModal({ onClose });
+    await fillDraftBaseFields();
+
+    fireEvent.click(screen.getByRole("button", { name: "ยกเลิก" }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "ยืนยันการยกเลิกหรือไม่ ข้อมูลที่กรอกไว้จะหายไป"
+    );
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "ยกเลิก" }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    confirmSpy.mockRestore();
   });
 });

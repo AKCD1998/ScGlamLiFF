@@ -525,6 +525,15 @@ const getSelectionSubnote = (bookingSelection) => {
   return "เก็บค่า treatment_id จาก booking options แล้ว";
 };
 
+const renderRequiredLabel = (label) => (
+  <>
+    {label}
+    <span className="new-bill-recipient-modal__required" aria-hidden="true">
+      *
+    </span>
+  </>
+);
+
 function NewBillRecipientModal({
   open,
   onClose,
@@ -1181,7 +1190,7 @@ function NewBillRecipientModal({
           แตะพื้นที่นี้เพื่อเลือกรูป หรือใช้ปุ่มด้านล่างเพื่อเปิดกล้องมือถือ
         </p>
 
-        <div className="new-bill-recipient-modal__upload-actions">
+        <div className="new-bill-recipient-modal__upload-actions new-bill-recipient-modal__upload-actions--picker">
           <button
             type="button"
             className="new-bill-recipient-modal__upload-action new-bill-recipient-modal__upload-action--primary"
@@ -1390,6 +1399,49 @@ function NewBillRecipientModal({
     return "";
   };
 
+  const submitValidationMessage = getSubmitValidationMessage();
+  const isFormComplete = !submitValidationMessage;
+  const isSubmitDisabled = isSubmitLocked || !isFormComplete;
+  const hasDiscardableData = Boolean(
+    trimText(formValues.name) ||
+      trimText(formValues.phone) ||
+      (trimText(formValues.branchId) &&
+        trimText(formValues.branchId) !== trimText(defaultBranchId)) ||
+      trimText(formValues.bookingOptionValue) ||
+      trimText(formValues.bookingDateText) ||
+      trimText(formValues.bookingDatePicker) ||
+      trimText(formValues.bookingTimeText) ||
+      trimText(formValues.bookingTimePicker) ||
+      trimText(formValues.provider) ||
+      trimText(bookingSelection.treatmentId) ||
+      selectedReceiptFile ||
+      receiptOcrResult ||
+      receiptStage !== "idle" ||
+      currentDraftId
+  );
+
+  const handleRequestClose = () => {
+    if (isActionBusy) {
+      return;
+    }
+
+    if (
+      hasDiscardableData &&
+      typeof window !== "undefined" &&
+      typeof window.confirm === "function"
+    ) {
+      const confirmed = window.confirm(
+        "ยืนยันการยกเลิกหรือไม่ ข้อมูลที่กรอกไว้จะหายไป"
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    onClose();
+  };
+
   const handleSaveDraft = async () => {
     if (isActionBusy) {
       return;
@@ -1467,11 +1519,11 @@ function NewBillRecipientModal({
   };
 
   const handleSubmit = async () => {
-    if (isSubmitLocked) {
+    if (isSubmitDisabled) {
       return;
     }
 
-    const validationMessage = getSubmitValidationMessage();
+    const validationMessage = submitValidationMessage;
 
     if (validationMessage) {
       setActiveAction(currentDraftId ? "draft-submit" : "booking-create");
@@ -1574,7 +1626,7 @@ function NewBillRecipientModal({
   const modalBody = (
     <div
       className="new-bill-recipient-modal__backdrop"
-      onClick={onClose}
+      onClick={handleRequestClose}
       role="presentation"
     >
       <div
@@ -1604,7 +1656,7 @@ function NewBillRecipientModal({
         <button
           type="button"
           className="new-bill-recipient-modal__close"
-          onClick={onClose}
+          onClick={handleRequestClose}
           aria-label="ปิดหน้าต่างผู้รับสิทธิ์ใหม่"
         >
           X
@@ -1620,7 +1672,7 @@ function NewBillRecipientModal({
                   htmlFor={field.id}
                   className="new-bill-recipient-modal__label"
                 >
-                  {field.label}
+                  {renderRequiredLabel(field.label)}
                 </label>
                 <input
                   id={field.id}
@@ -1637,7 +1689,7 @@ function NewBillRecipientModal({
                 htmlFor="recipient-branch"
                 className="new-bill-recipient-modal__label"
               >
-                สาขา
+                {renderRequiredLabel("สาขา")}
               </label>
               <select
                 id="recipient-branch"
@@ -1663,7 +1715,7 @@ function NewBillRecipientModal({
                 htmlFor="recipient-booking-option"
                 className="new-bill-recipient-modal__label"
               >
-                โปรโมชั่น / บริการ
+                {renderRequiredLabel("โปรโมชั่น / บริการ")}
               </label>
               <div className="new-bill-recipient-modal__stack">
                 <select
@@ -1702,7 +1754,7 @@ function NewBillRecipientModal({
                 htmlFor="recipient-booking-date"
                 className="new-bill-recipient-modal__label"
               >
-                วันที่จอง
+                {renderRequiredLabel("วันที่จอง")}
               </label>
               <div className="new-bill-recipient-modal__stack">
                 <div className="new-bill-recipient-modal__hybrid">
@@ -1750,7 +1802,7 @@ function NewBillRecipientModal({
                 htmlFor="recipient-booking-time"
                 className="new-bill-recipient-modal__label"
               >
-                เวลาที่นัดจองนวดหน้า
+                {renderRequiredLabel("เวลาที่นัดจองนวดหน้า")}
               </label>
               <div className="new-bill-recipient-modal__stack">
                 <div className="new-bill-recipient-modal__hybrid">
@@ -1798,7 +1850,7 @@ function NewBillRecipientModal({
                 htmlFor="recipient-provider"
                 className="new-bill-recipient-modal__label"
               >
-                ชื่อผู้ให้บริการ
+                {renderRequiredLabel("ชื่อผู้ให้บริการ")}
               </label>
               <select
                 id="recipient-provider"
@@ -1848,7 +1900,7 @@ function NewBillRecipientModal({
           <button
             type="button"
             className="new-bill-recipient-modal__action new-bill-recipient-modal__action--ghost"
-            onClick={onClose}
+            onClick={handleRequestClose}
             disabled={isActionBusy}
           >
             ยกเลิก
@@ -1857,7 +1909,7 @@ function NewBillRecipientModal({
             type="button"
             className="new-bill-recipient-modal__action new-bill-recipient-modal__action--primary"
             onClick={handleSubmit}
-            disabled={isSubmitLocked}
+            disabled={isSubmitDisabled}
           >
             {submitStatus === "success"
               ? "บันทึกแล้ว"
