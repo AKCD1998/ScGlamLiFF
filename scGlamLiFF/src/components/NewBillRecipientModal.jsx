@@ -1204,18 +1204,27 @@ function NewBillRecipientModal({
           </div>
 
           <div className="new-bill-recipient-modal__preview-content">
-            <h2
-              id="new-bill-recipient-modal-title"
-              className="new-bill-recipient-modal__title"
-            >
-              {receiptStage === "error" ? "ลองใช้รูปใหม่" : "ยืนยันรูปใบเสร็จ"}
-              <span className="new-bill-recipient-modal__required">***</span>
-            </h2>
-            <p className="new-bill-recipient-modal__helper">
-              {receiptStage === "error"
-                ? receiptOcrError
-                : "ตรวจสอบรูปให้ชัดเจนก่อนเริ่มอ่านข้อมูลจากใบเสร็จ"}
-            </p>
+            {receiptStage === "error" ? (
+              <>
+                <h2
+                  id="new-bill-recipient-modal-title"
+                  className="new-bill-recipient-modal__title"
+                >
+                  ลองใช้รูปใหม่
+                  <span className="new-bill-recipient-modal__required">***</span>
+                </h2>
+                <p className="new-bill-recipient-modal__helper">
+                  {receiptOcrError}
+                </p>
+              </>
+            ) : (
+              <span
+                id="new-bill-recipient-modal-title"
+                className="new-bill-recipient-modal__sr-only"
+              >
+                ยืนยันรูปใบเสร็จ
+              </span>
+            )}
             <div className="new-bill-recipient-modal__upload-actions">
               <button
                 type="button"
