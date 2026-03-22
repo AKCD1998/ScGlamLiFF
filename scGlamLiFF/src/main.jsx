@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 import App from "./App";
+import { buildTimeUtc, buildVersion } from "./config/env";
 import { ThemeProvider } from "./ThemeContext";
 
 if (typeof window !== "undefined") {
@@ -29,9 +30,14 @@ if (typeof window !== "undefined") {
     window.__SCGLAM_BOOT__ = {};
   }
   window.__SCGLAM_BOOT__.jsStarted = true;
+  window.__SCGLAM_BOOT__.buildInfo = {
+    buildVersion,
+    buildTimeUtc
+  };
+  console.info("[scGlamLiFF] frontend_build", window.__SCGLAM_BOOT__.buildInfo);
   const bootEl = document.getElementById("boot-status");
   if (bootEl) {
-    bootEl.textContent = "JS started. Rendering app...";
+    bootEl.textContent = `JS started. Rendering app... (${buildVersion})`;
   }
 }
 

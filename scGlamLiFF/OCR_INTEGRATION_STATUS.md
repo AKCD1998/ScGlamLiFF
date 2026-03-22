@@ -222,3 +222,40 @@
 - Real OCR is still blocked locally until Python dependencies are installed.
 - The active public backend OCR route is now in `scGlamLiff-reception`, but deployed production status is still uncertain.
 - Legacy OCR modules still exist in this repo and should not be mistaken for the active route.
+
+## Update 2026-03-22T12:26:05.7588466+07:00
+
+### Frontend OCR Error Mapping
+- `src/services/receiptOcrService.js` now distinguishes:
+  - `route_not_found`
+  - `service_unavailable`
+  - `network_error`
+  - `timeout`
+- `src/components/NewBillRecipientModal.jsx` now renders separate Thai copy for each of those frontend OCR failure reasons.
+
+### Frontend Build Visibility
+- `src/config/env.js` now exposes:
+  - `VITE_BUILD_VERSION`
+  - `VITE_BUILD_TIME_UTC`
+  - `VITE_OCR_REQUEST_TIMEOUT_MS`
+- `src/main.jsx` logs build info to the browser console under `[scGlamLiFF] frontend_build`.
+- `src/components/NewBillRecipientModal.jsx` now renders a visible `UI build ...` stamp inside the modal so the LIFF screen itself can confirm the deployed frontend bundle.
+- `.github/workflows/deploy.yml` now injects `VITE_BUILD_VERSION` and `VITE_BUILD_TIME_UTC` during the GitHub Pages build.
+
+### Production Verification On 2026-03-22
+- `GET https://scglamliff-reception.onrender.com/api/ocr/health`
+  - returned `routeMounted=true`
+  - returned `downstream.reachable=true`
+  - reported `ocrServiceBaseUrl=https://scglamliff.onrender.com`
+- `POST https://scglamliff-reception.onrender.com/api/ocr/receipt` without a file returned `OCR_IMAGE_REQUIRED`
+- Result:
+  - the production backend OCR route is mounted now
+  - the older frontend route-missing screenshot does not match the current backend runtime state by itself
+
+### Deployed Frontend Observation On 2026-03-22
+- `https://akcd1998.github.io/ScGlamLiFF/` currently serves `assets/index-fnUR061P.js`.
+- That deployed bundle still contains the older OCR route-missing text and the older service-unavailable text.
+- That deployed bundle does not yet contain the new build stamp added in this pass.
+- Practical conclusion:
+  - if a device still shows the older OCR route-missing message after backend production was fixed, stale frontend deployment or frontend cache is plausible
+  - the new build stamp is the intended verification point for the next deploy

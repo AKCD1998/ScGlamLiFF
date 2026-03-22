@@ -212,6 +212,22 @@
 ## Verification
 - `npm run build` passed after the branch/payload adapter refactor.
 
+## Update 2026-03-22T12:26:05.7588466+07:00
+
+### Bill Verification OCR Diagnostics Refresh
+- `src/components/NewBillRecipientModal.jsx` now maps OCR errors into four clearer buckets:
+  - missing backend OCR route
+  - downstream OCR unavailable
+  - network/CORS failure
+  - timeout
+- `src/services/receiptOcrService.js` now throws an explicit `timeout` reason when the OCR request exceeds the configured limit.
+- The Bill Verification modal now renders a visible `UI build ...` stamp so LIFF/mobile screenshots can prove which frontend build is actually on screen.
+- `.github/workflows/deploy.yml` now injects build metadata into the production frontend bundle.
+
+### Verification
+- `npx vitest run src/services/receiptOcrService.test.js src/components/NewBillRecipientModal.test.jsx`
+- `npm run build`
+
 ## Update 2026-03-17T17:38:18.2802171+07:00
 
 ### Branch drift reduction

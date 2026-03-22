@@ -34,6 +34,7 @@ import {
   processReceiptImage,
   ReceiptOcrApiError
 } from "../services/receiptOcrService";
+import { buildTimeUtc, buildVersion } from "../config/env";
 import "./NewBillRecipientModal.css";
 
 const recipientFields = [
@@ -336,15 +337,19 @@ const createReceiptOcrResultFromDraft = (draft) => {
 const getReceiptErrorMessage = (error) => {
   if (error instanceof ReceiptOcrApiError) {
     if (error.reason === "route_not_found") {
-      return "ไม่พบ OCR route ที่ backend ปลายทางนี้ กรุณาตรวจสอบ OCR base URL";
+      return "Backend ปลายทางนี้ยังไม่มี route /api/ocr/receipt กรุณาตรวจสอบ OCR base URL หรือ deployment ของ backend";
     }
 
     if (error.reason === "network_error") {
-      return "เชื่อมต่อ OCR backend ไม่ได้ กรุณาลองใหม่อีกครั้ง";
+      return "เชื่อมต่อ backend OCR ไม่ได้ กรุณาตรวจสอบเครือข่ายหรือ CORS แล้วลองใหม่";
+    }
+
+    if (error.reason === "timeout") {
+      return "OCR request ใช้เวลานานเกินกำหนด กรุณาลองใหม่หรือตรวจสอบ downstream OCR service";
     }
 
     if (error.reason === "service_unavailable") {
-      return "OCR service ยังไม่พร้อมใช้งาน กรุณาตรวจสอบ Python OCR service แล้วลองใหม่";
+      return "OCR downstream service ยังไม่พร้อมใช้งาน แม้ backend route จะตอบแล้ว กรุณาตรวจสอบ Python OCR service";
     }
 
     if (error.reason === "malformed_response") {
@@ -359,6 +364,21 @@ const getReceiptErrorMessage = (error) => {
   }
 
   return error?.message || "ไม่สามารถอ่านข้อมูลจากใบเสร็จได้ ลองใช้รูปใหม่อีกครั้ง";
+};
+
+const formatBuildStamp = () => {
+  const normalizedVersion = trimText(buildVersion) || "unversioned";
+  const shortVersion =
+    normalizedVersion.length > 14
+      ? normalizedVersion.slice(0, 7)
+      : normalizedVersion;
+  const normalizedBuildTime = trimText(buildTimeUtc);
+
+  if (!normalizedBuildTime) {
+    return `UI build ${shortVersion}`;
+  }
+
+  return `UI build ${shortVersion} | ${normalizedBuildTime}`;
 };
 
 const getBookingOptionsErrorMessage = (error) => {
@@ -579,6 +599,7 @@ function NewBillRecipientModal({
   onDraftChange,
   initialDraft = null
 }) {
+  const buildStamp = formatBuildStamp();
   const galleryInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const submitCloseTimerRef = useRef(null);
@@ -1981,6 +2002,12 @@ function NewBillRecipientModal({
                 : "บันทึก"}
           </button>
         </div>
+        <p
+          className="new-bill-recipient-modal__build-stamp"
+          aria-label="Frontend build version"
+        >
+          {buildStamp}
+        </p>
       </div>
     </div>
   );

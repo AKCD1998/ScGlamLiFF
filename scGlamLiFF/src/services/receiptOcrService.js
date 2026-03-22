@@ -3,6 +3,7 @@ import {
   debugEnabled,
   isDev,
   ocrApiBaseUrl,
+  ocrRequestTimeoutMs,
   useMock
 } from "../config/env";
 import { buildApiUrl } from "../utils/apiBase";
@@ -10,6 +11,9 @@ import { buildApiUrl } from "../utils/apiBase";
 const OCR_ENDPOINT = "/api/ocr/receipt";
 const OCR_UPLOAD_FIELD = "receipt";
 const OCR_DEBUG_PREFIX = "[ReceiptOCR]";
+const DEFAULT_ABORT_ERROR_NAME = "AbortError";
+const runtimeTimerApi =
+  typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : null;
 
 const normalizeLine = (line) => line.replace(/\s+/g, " ").trim();
 
@@ -241,6 +245,10 @@ const logReceiptOcrDebug = (event, details = {}) => {
   });
 };
 
+const isAbortTimeoutError = (error) =>
+  error?.name === DEFAULT_ABORT_ERROR_NAME ||
+  /aborted|timeout/i.test(String(error?.message || ""));
+
 const hasMeaningfulText = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
@@ -410,7 +418,14 @@ const withReceiptDisplayFallbacks = (result) => ({
 export class ReceiptOcrApiError extends Error {
   constructor(
     message,
-    { status = 0, reason = "", payload = null, endpoint = "", code = "" } = {}
+    {
+      status = 0,
+      reason = "",
+      payload = null,
+      endpoint = "",
+      code = "",
+      timeoutMs = 0
+    } = {}
   ) {
     super(message);
     this.name = "ReceiptOcrApiError";
@@ -419,6 +434,7 @@ export class ReceiptOcrApiError extends Error {
     this.payload = payload;
     this.endpoint = endpoint;
     this.code = code;
+    this.timeoutMs = timeoutMs;
   }
 }
 
@@ -527,6 +543,16 @@ const requestReceiptOcr = async (file) => {
   const endpoint = getOcrEndpoint();
   const formData = new FormData();
   formData.append(OCR_UPLOAD_FIELD, file, file.name);
+  const abortController =
+    typeof AbortController === "function" ? new AbortController() : null;
+  const timeoutId =
+    abortController &&
+    runtimeTimerApi &&
+    typeof runtimeTimerApi.setTimeout === "function"
+      ? runtimeTimerApi.setTimeout(() => {
+          abortController.abort();
+        }, ocrRequestTimeoutMs)
+      : null;
 
   logReceiptOcrDebug("request_started", {
     mockMode: false,
@@ -535,7 +561,8 @@ const requestReceiptOcr = async (file) => {
     uploadField: OCR_UPLOAD_FIELD,
     fileName: file?.name || "",
     fileType: file?.type || "",
-    fileSize: typeof file?.size === "number" ? file.size : null
+    fileSize: typeof file?.size === "number" ? file.size : null,
+    timeoutMs: ocrRequestTimeoutMs
   });
 
   let response;
@@ -544,20 +571,38 @@ const requestReceiptOcr = async (file) => {
     response = await fetch(endpoint, {
       method: "POST",
       credentials: "include",
-      body: formData
+      body: formData,
+      signal: abortController?.signal
     });
   } catch (error) {
+    const isTimeout = isAbortTimeoutError(error);
+    const reason = isTimeout ? "timeout" : "network_error";
+    const code = isTimeout ? "OCR_REQUEST_TIMEOUT" : "OCR_NETWORK_ERROR";
+    const message = isTimeout
+      ? "OCR request ใช้เวลานานเกินกำหนด"
+      : "ไม่สามารถเชื่อมต่อ OCR backend ได้";
+
     logReceiptOcrDebug("request_failed", {
       endpoint,
-      reason: "network_error",
+      reason,
+      code,
       errorMessage: error?.message || String(error)
     });
 
-    throw new ReceiptOcrApiError("ไม่สามารถเชื่อมต่อ OCR backend ได้", {
-      reason: "network_error",
+    throw new ReceiptOcrApiError(message, {
+      reason,
       endpoint,
-      code: "OCR_NETWORK_ERROR"
+      code,
+      timeoutMs: isTimeout ? ocrRequestTimeoutMs : null
     });
+  } finally {
+    if (
+      timeoutId !== null &&
+      runtimeTimerApi &&
+      typeof runtimeTimerApi.clearTimeout === "function"
+    ) {
+      runtimeTimerApi.clearTimeout(timeoutId);
+    }
   }
 
   const responseText = await response.text();

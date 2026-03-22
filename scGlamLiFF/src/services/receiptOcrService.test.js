@@ -18,7 +18,8 @@ const loadReceiptOcrService = async ({
   debugEnabled = false,
   isDev = false,
   apiBaseUrl = "https://backend.example.com",
-  ocrApiBaseUrl = ""
+  ocrApiBaseUrl = "",
+  ocrRequestTimeoutMs = 15000
 } = {}) => {
   vi.resetModules();
   vi.doMock("../config/env", () => ({
@@ -26,7 +27,8 @@ const loadReceiptOcrService = async ({
     debugEnabled,
     isDev,
     apiBaseUrl,
-    ocrApiBaseUrl
+    ocrApiBaseUrl,
+    ocrRequestTimeoutMs
   }));
 
   return import("./receiptOcrService");
@@ -169,6 +171,23 @@ describe("receiptOcrService", () => {
     await expect(processReceiptImage(createTestFile())).rejects.toBeInstanceOf(
       ReceiptOcrApiError
     );
+  });
+
+  it("maps aborted OCR requests to a timeout failure", async () => {
+    const abortError = new Error("The operation was aborted");
+    abortError.name = "AbortError";
+    global.fetch = vi.fn().mockRejectedValue(abortError);
+
+    const { processReceiptImage } = await loadReceiptOcrService({
+      useMock: false,
+      ocrRequestTimeoutMs: 4321
+    });
+
+    await expect(processReceiptImage(createTestFile())).rejects.toMatchObject({
+      reason: "timeout",
+      code: "OCR_REQUEST_TIMEOUT",
+      timeoutMs: 4321
+    });
   });
 
   it("throws when the OCR response shape does not contain usable OCR data", async () => {

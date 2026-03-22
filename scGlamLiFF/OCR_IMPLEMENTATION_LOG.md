@@ -116,3 +116,51 @@
 ## Remaining Questions
 - Should the Python OCR runtime stay in this repo after the backend route is now owned by `scGlamLiff-reception`?
 - Should the old local OCR route in this repo be removed later once the cross-repo route is stable?
+
+## Update 2026-03-22T12:26:05.7588466+07:00
+
+### Goal
+- Trace the exact OCR error text shown in LIFF back to frontend source.
+- Make frontend OCR errors more diagnostic without changing unrelated booking behavior.
+- Add a visible frontend build/version marker so deploy freshness can be checked from the LIFF UI itself.
+
+### Code Changes In This Pass
+- Updated `src/services/receiptOcrService.js`
+  - added request timeout support through `AbortController`
+  - added explicit `timeout` error reason
+  - kept `route_not_found`, `service_unavailable`, and `network_error` as distinct reasons
+- Updated `src/components/NewBillRecipientModal.jsx`
+  - confirmed the old route-missing screenshot text was rendered from `getReceiptErrorMessage(...)`
+  - replaced OCR error copy so the modal now distinguishes:
+    - backend route missing
+    - backend reachable but downstream OCR unavailable
+    - network/CORS failure
+    - timeout
+  - added a visible `UI build ...` stamp
+- Updated `src/components/NewBillRecipientModal.css`
+  - added styling for the visible build stamp
+- Updated `src/config/env.js`
+  - added `buildVersion`
+  - added `buildTimeUtc`
+  - added `ocrRequestTimeoutMs`
+- Updated `src/main.jsx`
+  - logs build info to the browser console during boot
+- Updated `.github/workflows/deploy.yml`
+  - injects `VITE_BUILD_VERSION`
+  - injects `VITE_BUILD_TIME_UTC`
+
+### Validation
+- `npx vitest run src/services/receiptOcrService.test.js src/components/NewBillRecipientModal.test.jsx`
+- `npm run build`
+
+### Production Check On 2026-03-22
+- `GET https://scglamliff-reception.onrender.com/api/ocr/health` reported:
+  - OCR route mounted
+  - downstream OCR reachable
+- `POST https://scglamliff-reception.onrender.com/api/ocr/receipt` without a file returned `OCR_IMAGE_REQUIRED`
+- `https://akcd1998.github.io/ScGlamLiFF/` currently serves `assets/index-fnUR061P.js`
+- That deployed frontend bundle still lacks the new build stamp from this pass.
+
+### Conclusion
+- The older LIFF screenshot text was real and came from current source before this patch.
+- After the backend production route recovered, the older route-missing screenshot became more consistent with stale frontend deployment or device cache than with the current backend runtime alone.
