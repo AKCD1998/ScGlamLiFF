@@ -259,3 +259,28 @@
 - Practical conclusion:
   - if a device still shows the older OCR route-missing message after backend production was fixed, stale frontend deployment or frontend cache is plausible
   - the new build stamp is the intended verification point for the next deploy
+
+## Update 2026-03-22T12:41:44.6473621+07:00
+
+### New Production Finding
+- Fresh LIFF screenshot now shows the visible build stamp, so current frontend code is on screen.
+- Production backend checks confirm:
+  - `POST https://scglamliff-reception.onrender.com/api/ocr/receipt` exists
+  - `GET https://scglamliff-reception.onrender.com/api/ocr/health` reports the backend OCR route mounted
+  - backend Render env currently exposes `ocrServiceBaseUrl=https://scglamliff.onrender.com`
+- But direct production check also confirms:
+  - `POST https://scglamliff.onrender.com/ocr/receipt` returns `404 Cannot POST /ocr/receipt`
+  - `GET https://scglamliff.onrender.com/health` still returns `200`
+- Conclusion:
+  - the downstream Python OCR host on Render is alive
+  - but the live downstream app does not expose the expected receipt route
+  - this can happen because `OCR_SERVICE_BASE_URL` points at the wrong service or because that Render service is deployed with older code
+
+### Frontend Classification Fix
+- `src/services/receiptOcrService.js` no longer treats every `404` as `route_not_found`.
+- Frontend now classifies payloads with:
+  - `OCR_SERVICE_UNAVAILABLE`
+  - `OCR_SERVICE_DISABLED`
+  - `OCR_DOWNSTREAM_ROUTE_NOT_FOUND`
+  as `service_unavailable`, even if the HTTP status is `404`.
+- This avoids showing a misleading “backend route missing” error when the real failure is downstream.

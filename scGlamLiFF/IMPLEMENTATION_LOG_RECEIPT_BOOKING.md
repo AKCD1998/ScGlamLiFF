@@ -228,6 +228,16 @@
 - `npx vitest run src/services/receiptOcrService.test.js src/components/NewBillRecipientModal.test.jsx`
 - `npm run build`
 
+## Update 2026-03-22T12:41:44.6473621+07:00
+
+### OCR Integration Correction
+- Frontend OCR errors previously treated any HTTP `404` as if the main backend route `/api/ocr/receipt` were missing.
+- Production checks showed a different failure:
+  - main backend OCR route exists
+  - downstream OCR host in Render responds on `/health`
+  - but downstream OCR host returns `404` on `POST /ocr/receipt`
+- `src/services/receiptOcrService.js` now preserves that distinction so Bill Verification will show downstream OCR failure instead of a misleading backend-route-missing error after the next frontend deploy.
+
 ## Update 2026-03-17T17:38:18.2802171+07:00
 
 ### Branch drift reduction

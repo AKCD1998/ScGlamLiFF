@@ -164,3 +164,33 @@
 ### Conclusion
 - The older LIFF screenshot text was real and came from current source before this patch.
 - After the backend production route recovered, the older route-missing screenshot became more consistent with stale frontend deployment or device cache than with the current backend runtime alone.
+
+## Update 2026-03-22T12:41:44.6473621+07:00
+
+### What Changed In This Pass
+- Updated `src/services/receiptOcrService.js`
+  - frontend no longer maps every HTTP `404` to `route_not_found`
+  - payload codes `OCR_SERVICE_UNAVAILABLE`, `OCR_SERVICE_DISABLED`, and `OCR_DOWNSTREAM_ROUTE_NOT_FOUND` now map to `service_unavailable`
+- Updated `src/services/receiptOcrService.test.js`
+  - added coverage for `404 + OCR_SERVICE_UNAVAILABLE` mapping
+
+### Cross-Repo Production Diagnosis
+- `scGlamLiff-reception` backend production is mounted correctly for:
+  - `POST /api/ocr/receipt`
+  - `POST /api/auth/login`
+- The current Render downstream OCR host configured by the backend is `https://scglamliff.onrender.com`
+- That host returns:
+  - `200` on `/health`
+  - `404 Cannot POST /ocr/receipt` on `/ocr/receipt`
+- So the production failure path is:
+  1. frontend sends OCR upload to backend SSOT correctly
+  2. backend OCR route receives it
+  3. backend calls downstream OCR host from Render env
+  4. downstream host is alive but does not expose the expected upload route
+  5. frontend previously mislabeled that as “main backend route missing”
+
+### Interpretation
+- Yes, this can be a Render env problem:
+  - `OCR_SERVICE_BASE_URL` may point to the wrong service
+  - or the Python OCR Render service may be deployed from older code that only serves `/health`
+- It is not explained by stale frontend alone anymore because the LIFF screenshot now shows the current build stamp.

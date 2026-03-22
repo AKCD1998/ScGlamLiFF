@@ -475,7 +475,28 @@ const buildResponseError = (response, payload, endpoint) => {
   const payloadMessage =
     getPayloadMessage(payload) || `Receipt OCR request failed: ${status}`;
 
-  if (status === 404) {
+  if (
+    status === 502 ||
+    status === 503 ||
+    payloadCode === "OCR_SERVICE_UNAVAILABLE" ||
+    payloadCode === "OCR_SERVICE_DISABLED" ||
+    payloadCode === "OCR_DOWNSTREAM_ROUTE_NOT_FOUND"
+  ) {
+    return new ReceiptOcrApiError(payloadMessage, {
+      status,
+      reason: "service_unavailable",
+      payload,
+      endpoint,
+      code: payloadCode || "OCR_SERVICE_UNAVAILABLE"
+    });
+  }
+
+  if (
+    status === 404 &&
+    (!payloadCode ||
+      payloadCode === "OCR_ROUTE_NOT_FOUND" ||
+      payloadCode === "NOT_FOUND")
+  ) {
     return new ReceiptOcrApiError("ไม่พบ OCR route ที่ backend นี้", {
       status,
       reason: "route_not_found",
@@ -502,21 +523,6 @@ const buildResponseError = (response, payload, endpoint) => {
       payload,
       endpoint,
       code: payloadCode
-    });
-  }
-
-  if (
-    status === 502 ||
-    status === 503 ||
-    payloadCode === "OCR_SERVICE_UNAVAILABLE" ||
-    payloadCode === "OCR_SERVICE_DISABLED"
-  ) {
-    return new ReceiptOcrApiError(payloadMessage, {
-      status,
-      reason: "service_unavailable",
-      payload,
-      endpoint,
-      code: payloadCode || "OCR_SERVICE_UNAVAILABLE"
     });
   }
 

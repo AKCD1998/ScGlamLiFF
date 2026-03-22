@@ -91,3 +91,37 @@
 1. Deploy the updated frontend repo so the LIFF UI shows the new build stamp.
 2. Re-open the LIFF app on mobile and compare the on-screen build stamp against the latest deployment.
 3. If the old route-missing text still appears after the new build stamp is visible, inspect device cache or LINE in-app webview cache behavior next.
+
+## Update 2026-03-22T12:41:44.6473621+07:00
+
+### Summary
+- The fresh frontend build is now visible in LIFF via the `UI build ...` stamp, so the latest screenshot is no longer explained by stale frontend cache alone.
+- Cross-repo production checks show:
+  - `scglamliff-reception.onrender.com/api/ocr/receipt` is mounted and reachable
+  - `scglamliff-reception.onrender.com/api/auth/login` is mounted and returns a cross-site cookie
+  - downstream OCR service configured in Render currently reports healthy at `/health`
+  - but the same downstream host returns `Cannot POST /ocr/receipt`
+- Result:
+  - the main backend route is present
+  - the downstream OCR service route is missing or the configured `OCR_SERVICE_BASE_URL` points at the wrong Render service/version
+- Frontend had a second issue:
+  - it treated any HTTP `404` as `route_not_found`
+  - that made an upstream OCR-service `404` look like the main backend OCR route was missing
+
+### Files Read
+- `scGlamLiFF/src/services/receiptOcrService.js`
+- `scGlamLiFF/src/services/branchDeviceStaffAuthService.js`
+- `scGlamLiFF/src/context/BranchDeviceContext.jsx`
+- `scGlamLiFF/src/utils/apiBase.js`
+- `..\scGlamLiff-reception\backend\src\app.js`
+- `..\scGlamLiff-reception\backend\src\routes\ocr.js`
+- `..\scGlamLiff-reception\backend\src\controllers\authController.js`
+- `..\scGlamLiff-reception\backend\src\services\ocr\pythonOcrClient.js`
+- `..\scGlamLiff-reception\backend\src\services\ocr\receiptOcrService.js`
+- `..\scGlamLiff-reception\backend\README-backend.md`
+
+### Next Actions
+1. Redeploy the frontend so the new OCR 404 classification fix reaches LIFF users.
+2. Check Render env for `OCR_SERVICE_BASE_URL` and confirm it points at the Python OCR deployment that actually serves `POST /ocr/receipt`.
+3. If `OCR_SERVICE_BASE_URL` is already correct, redeploy the Python OCR Render service because its live runtime does not match the repo code.
+4. Keep investigating LIFF staff login separately as a cross-site cookie persistence problem, not as a missing auth route.

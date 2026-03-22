@@ -173,6 +173,30 @@ describe("receiptOcrService", () => {
     );
   });
 
+  it("treats upstream OCR service 404 payloads as service unavailable instead of backend route missing", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 404,
+        body: JSON.stringify({
+          success: false,
+          errorCode: "OCR_SERVICE_UNAVAILABLE",
+          errorMessage: "Python OCR service request failed: 404"
+        })
+      })
+    );
+
+    const { processReceiptImage } = await loadReceiptOcrService({
+      useMock: false
+    });
+
+    await expect(processReceiptImage(createTestFile())).rejects.toMatchObject({
+      reason: "service_unavailable",
+      status: 404,
+      code: "OCR_SERVICE_UNAVAILABLE"
+    });
+  });
+
   it("maps aborted OCR requests to a timeout failure", async () => {
     const abortError = new Error("The operation was aborted");
     abortError.name = "AbortError";
