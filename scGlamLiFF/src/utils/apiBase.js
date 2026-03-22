@@ -1,6 +1,6 @@
 import { apiBaseUrl } from "../config/env";
 
-export const apiUrl = (path) => {
+export const buildApiUrl = (baseUrl, path) => {
   if (!path) {
     return path;
   }
@@ -8,5 +8,7 @@ export const apiUrl = (path) => {
     return path;
   }
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return apiBaseUrl ? `${apiBaseUrl}${normalizedPath}` : normalizedPath;
+  return baseUrl ? `${baseUrl}${normalizedPath}` : normalizedPath;
 };
+
+export const apiUrl = (path) => buildApiUrl(apiBaseUrl, path);

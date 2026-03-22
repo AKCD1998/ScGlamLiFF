@@ -1,4 +1,12 @@
-const normalizeLine = (line) => line.replace(/\s+/g, " ").trim();
+const RECEIPT_LINE_PATTERN =
+  /(?<date>\d{2}[/-]\d{2}[/-]\d{4})\s*(?<time>\d{2}:\d{2})\s*(?:BN[O0]|BNO)\s*[:;.]?\s*(?<bno>[A-Z0-9\-:/ ]+)/i;
+
+const normalizeLine = (line) =>
+  String(line || "")
+    .replace(/\s+/g, " ")
+    .replace(/\bBN[O0]\s*[:;.]?\s*/gi, "BNO:")
+    .replace(/\bID\s*:\s*/gi, "")
+    .trim();
 
 const splitReceiptLines = (text) =>
   String(text || "")
@@ -53,12 +61,42 @@ const isReceiptMetaLine = (line) =>
   /\bBNO[:\s]?[A-Z0-9-:/]+\b/i.test(line) ||
   /\b\d{2}[/-]\d{2}[/-]\d{4}\b.*\b\d{2}:\d{2}\b/.test(line);
 
-const findReceiptLine = (lines) =>
-  lines.find((line) =>
-    /\b\d{2}[/-]\d{2}[/-]\d{4}\b.*\b\d{2}:\d{2}\b.*\bBNO[:\s]?[A-Z0-9-:/]+\b/i.test(
-      line
-    )
-  ) || "";
+const canonicalizeReceiptLine = (value) => {
+  const normalized = normalizeLine(value).toUpperCase();
+  const match = RECEIPT_LINE_PATTERN.exec(normalized);
+
+  if (!match?.groups) {
+    return normalized;
+  }
+
+  const date = match.groups.date.replace(/-/g, "/");
+  const time = match.groups.time;
+  const bno = match.groups.bno.replace(/\s+/g, "").replace(/[:-]+$/g, "");
+
+  return `${date} ${time} BNO:${bno}`;
+};
+
+const buildReceiptLineCandidates = (lines) => {
+  const candidates = [...lines];
+
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    candidates.push(`${lines[index]} ${lines[index + 1]}`);
+  }
+
+  return candidates;
+};
+
+const findReceiptLine = (lines) => {
+  const candidates = buildReceiptLineCandidates(lines);
+
+  for (const candidate of candidates) {
+    if (RECEIPT_LINE_PATTERN.test(candidate)) {
+      return canonicalizeReceiptLine(candidate);
+    }
+  }
+
+  return "";
+};
 
 const findTotalAmount = (lines) => {
   const anchorIndexes = lines.reduce((indexes, line, index) => {
@@ -77,17 +115,51 @@ const findTotalAmount = (lines) => {
     .flatMap((line) => collectAmountsFromLine(line))
     .sort((left, right) => right.numericValue - left.numericValue);
 
-  const meaningfulCandidate = candidates.find((candidate) => candidate.numericValue >= 10);
-  return (meaningfulCandidate || candidates[0])?.display || "";
+  const meaningfulCandidate = candidates.find(
+    (candidate) => candidate.numericValue >= 10
+  );
+
+  return meaningfulCandidate || candidates[0] || null;
 };
+
+const extractReceiptLineParts = (receiptLine) => {
+  const match = RECEIPT_LINE_PATTERN.exec(String(receiptLine || ""));
+
+  if (!match?.groups) {
+    return {
+      receiptDate: "",
+      receiptTime: ""
+    };
+  }
+
+  const [day, month, year] = match.groups.date.replace(/-/g, "/").split("/");
+
+  return {
+    receiptDate:
+      day && month && year
+        ? `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
+        : "",
+    receiptTime: match.groups.time || ""
+  };
+};
+
+const formatTotalAmountDisplay = (amountCandidate) =>
+  amountCandidate ? `${amountCandidate.display} THB` : "";
 
 export const parseReceiptText = (rawText) => {
   const normalizedText = String(rawText || "").trim();
   const lines = splitReceiptLines(normalizedText);
+  const receiptLine = findReceiptLine(lines);
+  const totalAmountCandidate = findTotalAmount(lines);
+  const { receiptDate, receiptTime } = extractReceiptLineParts(receiptLine);
 
   return {
-    receiptLine: findReceiptLine(lines),
-    totalAmount: findTotalAmount(lines)
+    receiptLine,
+    totalAmount: formatTotalAmountDisplay(totalAmountCandidate),
+    totalAmountValue: totalAmountCandidate?.numericValue ?? null,
+    receiptDate,
+    receiptTime,
+    merchantName: ""
   };
 };
 

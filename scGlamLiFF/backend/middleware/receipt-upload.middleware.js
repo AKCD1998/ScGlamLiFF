@@ -1,4 +1,5 @@
 import multer from "multer";
+import { buildReceiptOcrErrorPayload } from "../services/ocr/receipt-ocr.service.js";
 
 const MAX_RECEIPT_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -28,13 +29,26 @@ const receiptUploadMiddleware = (req, res, next) => {
     }
 
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
-      res.status(413).json({ error: "receipt image is too large" });
+      res.status(413).json(
+        buildReceiptOcrErrorPayload({
+          code: "OCR_IMAGE_TOO_LARGE",
+          message: "receipt image is too large"
+        })
+      );
       return;
     }
 
-    res.status(error.status || 400).json({
-      error: error.message || "Failed to upload receipt image"
-    });
+    const code =
+      error?.message === "receipt must be an image file"
+        ? "OCR_INVALID_FILE_TYPE"
+        : "OCR_UPLOAD_FAILED";
+
+    res.status(error.status || 400).json(
+      buildReceiptOcrErrorPayload({
+        code,
+        message: error.message || "Failed to upload receipt image"
+      })
+    );
   });
 };
 

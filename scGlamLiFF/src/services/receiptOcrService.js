@@ -1,5 +1,11 @@
-import { debugEnabled, isDev, useMock } from "../config/env";
-import { apiUrl } from "../utils/apiBase";
+import {
+  apiBaseUrl,
+  debugEnabled,
+  isDev,
+  ocrApiBaseUrl,
+  useMock
+} from "../config/env";
+import { buildApiUrl } from "../utils/apiBase";
 
 const OCR_ENDPOINT = "/api/ocr/receipt";
 const OCR_UPLOAD_FIELD = "receipt";
@@ -102,6 +108,51 @@ const pickFirstObject = (...values) =>
     (value) => value && typeof value === "object" && !Array.isArray(value)
   ) || null;
 
+const pickFirstArray = (...values) =>
+  values.find((value) => Array.isArray(value) && value.length > 0) || [];
+
+const getOcrEndpoint = () => buildApiUrl(ocrApiBaseUrl || apiBaseUrl, OCR_ENDPOINT);
+
+const getPayloadMode = (payload) =>
+  pickFirstText(payload?.mode, payload?.result?.mode).toLowerCase();
+
+const getPayloadCode = (payload) =>
+  pickFirstText(
+    payload?.errorCode,
+    payload?.code,
+    payload?.error?.code,
+    payload?.result?.errorCode,
+    payload?.result?.code
+  );
+
+const getPayloadMessage = (payload) =>
+  pickFirstText(
+    payload?.errorMessage,
+    payload?.message,
+    payload?.error?.message,
+    payload?.error,
+    payload?.reason,
+    payload?.result?.errorMessage,
+    payload?.result?.message
+  );
+
+const isLegacyMockPayload = (payload) => {
+  const mode = getPayloadMode(payload);
+  const code = getPayloadCode(payload);
+  const ocrStatus = pickFirstText(
+    payload?.ocrStatus,
+    payload?.ocr_status,
+    payload?.result?.ocrStatus,
+    payload?.result?.ocr_status
+  ).toLowerCase();
+
+  return (
+    mode.startsWith("mock") ||
+    code === "OCR_LEGACY_MOCK_RESULT" ||
+    ocrStatus === "mock"
+  );
+};
+
 const collectRawText = (payload) => {
   const parts = [];
 
@@ -116,9 +167,11 @@ const collectRawText = (payload) => {
   }
 
   pushText(payload.rawText);
+  pushText(payload.ocrText);
   pushText(payload.text);
   pushText(payload.ocrText);
   pushText(payload.result?.rawText);
+  pushText(payload.result?.ocrText);
   pushText(payload.result?.text);
 
   if (Array.isArray(payload.lines)) {
@@ -146,6 +199,21 @@ const collectRawText = (payload) => {
   }
 
   return parts.join("\n");
+};
+
+const collectReceiptLines = (payload, rawText) => {
+  const payloadLines = pickFirstArray(
+    payload?.receiptLines,
+    payload?.receipt_lines,
+    payload?.parsed?.receiptLines,
+    payload?.parsed?.receipt_lines,
+    payload?.result?.receiptLines,
+    payload?.result?.receipt_lines
+  )
+    .map((line) => normalizeLine(String(line || "")))
+    .filter(Boolean);
+
+  return payloadLines.length ? payloadLines : splitReceiptLines(rawText);
 };
 
 const safeJsonParse = (text) => {
@@ -176,39 +244,90 @@ const logReceiptOcrDebug = (event, details = {}) => {
 const hasMeaningfulText = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
-const mapReceiptPayload = (payload, source) => {
+const mapReceiptPayload = (payload) => {
   const rawText = collectRawText(payload);
-  const lines = splitReceiptLines(rawText);
+  const lines = collectReceiptLines(payload, rawText);
   const totalAmountCandidate = findTotalAmountCandidate(lines);
+  const source = isLegacyMockPayload(payload) ? "mock" : "api";
+  const payloadMessage = getPayloadMessage(payload);
+  const payloadCode = getPayloadCode(payload);
   const receiptLine =
     pickFirstText(
       payload?.receiptLine,
       payload?.receipt_line,
       payload?.receiptDateTimeOrIdLine,
+      payload?.parsed?.receiptLine,
       payload?.result?.receiptLine,
       payload?.result?.receipt_line
     ) || findReceiptLine(lines);
-  const totalAmount =
-    pickFirstText(
-      payload?.totalAmount,
-      payload?.total_amount,
-      payload?.result?.totalAmount,
-      payload?.result?.total_amount
-    ) || totalAmountCandidate?.display || "";
   const totalAmountValue =
     pickFirstNumber(
       payload?.totalAmountTHB,
       payload?.total_amount_thb,
+      payload?.parsed?.totalAmountValue,
+      payload?.parsed?.total_amount_value,
       payload?.result?.totalAmountTHB,
       payload?.result?.total_amount_thb
     ) ?? totalAmountCandidate?.numericValue ?? null;
+  const totalAmount =
+    pickFirstText(
+      payload?.totalAmount,
+      payload?.total_amount,
+      payload?.parsed?.totalAmount,
+      payload?.parsed?.total_amount,
+      payload?.result?.totalAmount,
+      payload?.result?.total_amount
+    ) ||
+    (typeof totalAmountValue === "number" && Number.isFinite(totalAmountValue)
+      ? `${totalAmountValue} THB`
+      : totalAmountCandidate?.display || "");
 
   return {
     source,
     rawText,
+    ocrText: rawText,
     receiptLine,
+    receiptLines: lines,
     totalAmount,
     totalAmountValue,
+    receiptDate: pickFirstText(
+      payload?.receiptDate,
+      payload?.receipt_date,
+      payload?.parsed?.receiptDate,
+      payload?.parsed?.receipt_date,
+      payload?.result?.receiptDate,
+      payload?.result?.receipt_date
+    ),
+    receiptTime: pickFirstText(
+      payload?.receiptTime,
+      payload?.receipt_time,
+      payload?.parsed?.receiptTime,
+      payload?.parsed?.receipt_time,
+      payload?.result?.receiptTime,
+      payload?.result?.receipt_time
+    ),
+    merchantName: pickFirstText(
+      payload?.merchant,
+      payload?.merchantName,
+      payload?.merchant_name,
+      payload?.parsed?.merchant,
+      payload?.parsed?.merchantName,
+      payload?.parsed?.merchant_name,
+      payload?.result?.merchant,
+      payload?.result?.merchantName,
+      payload?.result?.merchant_name
+    ),
+    merchant: pickFirstText(
+      payload?.merchant,
+      payload?.merchantName,
+      payload?.merchant_name,
+      payload?.parsed?.merchant,
+      payload?.parsed?.merchantName,
+      payload?.parsed?.merchant_name,
+      payload?.result?.merchant,
+      payload?.result?.merchantName,
+      payload?.result?.merchant_name
+    ),
     receiptNumber: pickFirstText(
       payload?.receiptNumber,
       payload?.receipt_number,
@@ -245,9 +364,17 @@ const mapReceiptPayload = (payload, source) => {
       payload?.result?.ocrMetadata,
       payload?.result?.ocr_metadata
     ),
+    ocrCode: payloadCode,
+    ocrMessage: payloadMessage,
+    errorCode: source === "mock" ? "" : payloadCode,
+    errorMessage: source === "mock" ? "" : payloadMessage,
     statusNote: pickFirstText(
       payload?.statusNote,
-      payload?.result?.statusNote
+      payload?.result?.statusNote,
+      source === "mock"
+        ? payloadMessage ||
+            "ผลลัพธ์นี้มาจาก legacy mock OCR และจะไม่ถูกแนบเป็น receipt evidence จริง"
+        : ""
     )
   };
 };
@@ -256,6 +383,7 @@ const hasMeaningfulReceiptResult = (result) =>
   Boolean(
     hasMeaningfulText(result?.rawText) ||
       hasMeaningfulText(result?.receiptLine) ||
+      (Array.isArray(result?.receiptLines) && result.receiptLines.length > 0) ||
       hasMeaningfulText(result?.totalAmount) ||
       hasMeaningfulText(result?.receiptNumber) ||
       hasMeaningfulText(result?.receiptIdentifier) ||
@@ -280,13 +408,17 @@ const withReceiptDisplayFallbacks = (result) => ({
 });
 
 export class ReceiptOcrApiError extends Error {
-  constructor(message, { status = 0, reason = "", payload = null, endpoint = "" } = {}) {
+  constructor(
+    message,
+    { status = 0, reason = "", payload = null, endpoint = "", code = "" } = {}
+  ) {
     super(message);
     this.name = "ReceiptOcrApiError";
     this.status = status;
     this.reason = reason;
     this.payload = payload;
     this.endpoint = endpoint;
+    this.code = code;
   }
 }
 
@@ -300,33 +432,41 @@ const preprocessReceiptImage = async (file) => {
 const buildMockOcrResult = () => ({
   source: "mock",
   rawText: "",
+  ocrText: "",
   receiptLine: "ยังไม่ได้อ่านจากใบเสร็จจริง",
+  receiptLines: [],
   totalAmount: "รอ OCR backend",
   totalAmountValue: null,
+  receiptDate: "",
+  receiptTime: "",
+  merchant: "",
+  merchantName: "",
   receiptNumber: "",
   receiptIdentifier: "",
   receiptImageRef: "",
   ocrStatus: "",
   ocrMetadata: null,
+  ocrCode: "",
+  ocrMessage: "",
+  errorCode: "",
+  errorMessage: "",
   statusNote: "โหมด mock: แสดงข้อมูลตัวอย่างแทน OCR จริง"
 });
 
 const buildResponseError = (response, payload, endpoint) => {
   const status = response.status;
+  const payloadCode = getPayloadCode(payload);
   const payloadMessage =
-    pickFirstText(payload?.message, payload?.error, payload?.reason) ||
-    `Receipt OCR request failed: ${status}`;
+    getPayloadMessage(payload) || `Receipt OCR request failed: ${status}`;
 
   if (status === 404) {
-    return new ReceiptOcrApiError(
-      "Backend SSOT ยังไม่มี POST /api/ocr/receipt สำหรับ OCR ใบเสร็จ",
-      {
-        status,
-        reason: "missing_backend_endpoint",
-        payload,
-        endpoint
-      }
-    );
+    return new ReceiptOcrApiError("ไม่พบ OCR route ที่ backend นี้", {
+      status,
+      reason: "route_not_found",
+      payload,
+      endpoint,
+      code: payloadCode || "OCR_ROUTE_NOT_FOUND"
+    });
   }
 
   if (status === 400) {
@@ -334,7 +474,8 @@ const buildResponseError = (response, payload, endpoint) => {
       status,
       reason: "bad_request",
       payload,
-      endpoint
+      endpoint,
+      code: payloadCode
     });
   }
 
@@ -343,7 +484,33 @@ const buildResponseError = (response, payload, endpoint) => {
       status,
       reason: "auth_required",
       payload,
-      endpoint
+      endpoint,
+      code: payloadCode
+    });
+  }
+
+  if (
+    status === 502 ||
+    status === 503 ||
+    payloadCode === "OCR_SERVICE_UNAVAILABLE" ||
+    payloadCode === "OCR_SERVICE_DISABLED"
+  ) {
+    return new ReceiptOcrApiError(payloadMessage, {
+      status,
+      reason: "service_unavailable",
+      payload,
+      endpoint,
+      code: payloadCode || "OCR_SERVICE_UNAVAILABLE"
+    });
+  }
+
+  if (payloadCode === "OCR_RESPONSE_INVALID") {
+    return new ReceiptOcrApiError(payloadMessage, {
+      status,
+      reason: "malformed_response",
+      payload,
+      endpoint,
+      code: payloadCode
     });
   }
 
@@ -351,22 +518,20 @@ const buildResponseError = (response, payload, endpoint) => {
     status,
     reason: "backend_error",
     payload,
-    endpoint
+    endpoint,
+    code: payloadCode
   });
 };
 
 const requestReceiptOcr = async (file) => {
-  const endpoint = apiUrl(OCR_ENDPOINT);
+  const endpoint = getOcrEndpoint();
   const formData = new FormData();
-
-  // Backend SSOT in scGlamLiff-reception currently does not expose a dedicated
-  // OCR upload route. This keeps the intended endpoint explicit so a future
-  // backend OCR contract can be wired here without reworking modal behavior.
   formData.append(OCR_UPLOAD_FIELD, file, file.name);
 
   logReceiptOcrDebug("request_started", {
     mockMode: false,
     endpoint,
+    usesDedicatedOcrBaseUrl: Boolean(ocrApiBaseUrl),
     uploadField: OCR_UPLOAD_FIELD,
     fileName: file?.name || "",
     fileType: file?.type || "",
@@ -390,7 +555,8 @@ const requestReceiptOcr = async (file) => {
 
     throw new ReceiptOcrApiError("ไม่สามารถเชื่อมต่อ OCR backend ได้", {
       reason: "network_error",
-      endpoint
+      endpoint,
+      code: "OCR_NETWORK_ERROR"
     });
   }
 
@@ -414,36 +580,40 @@ const requestReceiptOcr = async (file) => {
 
 export const processReceiptImage = async (file) => {
   const preparedFile = await preprocessReceiptImage(file);
+  const endpoint = getOcrEndpoint();
 
   if (useMock) {
     logReceiptOcrDebug("mock_result_used", {
       mockMode: true,
-      endpoint: apiUrl(OCR_ENDPOINT)
+      endpoint
     });
     return buildMockOcrResult();
   }
 
   const payload = await requestReceiptOcr(preparedFile);
-  const mappedResult = mapReceiptPayload(payload, "api");
+  const mappedResult = mapReceiptPayload(payload);
 
   if (!hasMeaningfulReceiptResult(mappedResult)) {
     logReceiptOcrDebug("response_invalid", {
-      endpoint: apiUrl(OCR_ENDPOINT),
+      endpoint,
       reason: "malformed_response"
     });
 
     throw new ReceiptOcrApiError("OCR backend ตอบกลับมา แต่ไม่มีข้อมูล OCR ที่ใช้งานได้", {
       reason: "malformed_response",
       payload,
-      endpoint: apiUrl(OCR_ENDPOINT)
+      endpoint,
+      code: getPayloadCode(payload) || "OCR_RESPONSE_INVALID"
     });
   }
 
   const finalResult = withReceiptDisplayFallbacks(mappedResult);
 
   logReceiptOcrDebug("request_succeeded", {
-    endpoint: apiUrl(OCR_ENDPOINT),
+    endpoint,
     source: finalResult.source,
+    code: finalResult.ocrCode || null,
+    mode: getPayloadMode(payload) || null,
     hasRawText: hasMeaningfulText(finalResult.rawText),
     hasReceiptLine: hasMeaningfulText(finalResult.receiptLine),
     hasAmount:
@@ -453,4 +623,3 @@ export const processReceiptImage = async (file) => {
 
   return finalResult;
 };
-

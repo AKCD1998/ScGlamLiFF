@@ -101,3 +101,44 @@ Date: 2026-03-17
 - Tightened total-amount selection to avoid quantity-like values from `Items` or multiplication rows and to prefer the right-side amount around the `Total/Cash/Change` block.
 - Tuned against the available sample receipt style and synthetic sanity-checks for this receipt family; more real samples will still help further.
 - Files modified: `backend/services/ocr_python/app/services/preprocess_service.py`, `backend/services/ocr_python/app/services/paddle_ocr_service.py`, `backend/services/ocr_python/app/services/receipt_parser.py`, `backend/services/ocr_python/app/main.py`, `backend/services/ocr_python/README.md`, `docs/bill-verification-mock-note.md`
+
+## Update: OCR Route Standardization For Bill Verification
+
+- Older sections in this file remain as implementation history only.
+- Current active OCR path is no longer "future" or "scaffold only" at the route-contract level.
+- The active public route in this repo is now `POST /api/ocr/receipt`.
+- The active chain is:
+  - `src/components/NewBillRecipientModal.jsx`
+  - `src/services/receiptOcrService.js`
+  - `backend/routes/ocr.routes.js`
+  - `backend/services/ocr/receipt-ocr.service.js`
+  - `backend/services/ocr/python-ocr-client.service.js`
+  - `backend/services/ocr_python/app/main.py`
+- `VITE_OCR_API_BASE_URL` now exists so OCR can be routed to the local backend even when the rest of the frontend uses another API base.
+- Legacy/mock OCR still exists, but is now explicitly labeled as legacy and not treated as active OCR evidence.
+- Current OCR source-of-truth docs for this repo are now:
+  - `OCR_INTEGRATION_STATUS.md`
+  - `OCR_IMPLEMENTATION_LOG.md`
+
+## Update: Cross-Repo OCR Routing Alignment
+
+- Bill Verification OCR no longer treats this repo's local Node backend as the active public backend route.
+- Active public route is now in the backend SSOT repo `scGlamLiff-reception/backend`:
+  - `backend/src/routes/ocr.js`
+  - `POST /api/ocr/receipt`
+- This repo still owns:
+  - upload UI in `src/components/NewBillRecipientModal.jsx`
+  - frontend OCR caller in `src/services/receiptOcrService.js`
+  - Python OCR runtime in `backend/services/ocr_python/app/main.py`
+- Local development OCR routing is now aligned to that backend SSOT route through:
+  - `.env.development.local` with `VITE_OCR_API_BASE_URL=http://localhost:5050`
+  - `vite.config.js` proxy on `http://localhost:5050`
+- The older local Node OCR modules under this repo's `backend/` folder are now legacy/WIP for this flow and should not be treated as the active Bill Verification backend path.
+- Files modified in this pass:
+  - `.env.development.local`
+  - `DEV_MOCK_SETUP.md`
+  - `OCR_INTEGRATION_STATUS.md`
+  - `OCR_IMPLEMENTATION_LOG.md`
+  - `IMPLEMENTATION_LOG_RECEIPT_BOOKING.md`
+  - `backend/services/ocr_python/README.md`
+  - `docs/bill-verification-mock-note.md`

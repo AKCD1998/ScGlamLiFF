@@ -14,7 +14,7 @@ export default defineConfig(({ command, mode }) => {
     plugins: [react()],
     server: {
       proxy: {
-        "/api": "http://localhost:3002"
+        "/api": "http://localhost:5050"
       }
     }
   };

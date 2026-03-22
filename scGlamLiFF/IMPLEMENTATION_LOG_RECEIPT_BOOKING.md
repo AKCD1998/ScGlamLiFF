@@ -594,3 +594,86 @@
   - staff cookie persistence failure inside LINE WebView
   - the current pragmatic decision to move registration POST toward a route-scoped non-cookie fallback instead of a wider auth rewrite
 - This was split into its own document because the debugging path crossed both frontend and backend repos, production env/config, Render logs, GitHub Pages deploy config, and DB verification steps.
+
+## Update 2026-03-22T09:30:13.3170176+07:00
+
+### Scope
+- Make the existing OCR receipt route usable end-to-end for the Bill Verification flow without rewriting unrelated appointment flows.
+- Standardize the OCR response contract and make the real OCR path explicit.
+
+### Active OCR path now enforced
+- `src/components/NewBillRecipientModal.jsx` uploads the receipt image and still owns the Bill Verification UI flow.
+- `src/services/receiptOcrService.js` now resolves OCR through a dedicated OCR base URL when `VITE_OCR_API_BASE_URL` is set.
+- Active backend chain is now:
+  - `backend/routes/ocr.routes.js`
+  - `backend/middleware/receipt-upload.middleware.js`
+  - `backend/controllers/ocr.controller.js`
+  - `backend/services/ocr/receipt-ocr.service.js`
+  - `backend/services/ocr/python-ocr-client.service.js`
+  - `backend/services/ocr_python/app/main.py`
+
+### What changed
+- Added `VITE_OCR_API_BASE_URL` so OCR can stay local even when other frontend API calls point elsewhere.
+- Standardized OCR success/error payloads across frontend, Node backend, and Python service.
+- Marked legacy/mock OCR results explicitly as non-active OCR evidence with:
+  - `code: "OCR_LEGACY_MOCK_RESULT"`
+  - `ocrStatus: "mock"`
+  - `ocrMetadata.activePath: false`
+- Updated the frontend mapping so legacy/mock OCR results do not silently flow into canonical receipt evidence as if they were real API OCR.
+- Added concise OCR diagnostics at the Node route/controller layer.
+
+### Validation
+- `npx vitest run src/services/receiptOcrService.test.js` passed.
+- `npm run build` passed.
+- `python -m compileall backend/services/ocr_python/app/main.py backend/services/ocr_python/app/services/receipt_parser.py` passed.
+
+### Remaining blocker
+- Real OCR still depends on the local Python OCR runtime and its dependencies being installed.
+- During this pass, the current environment was still missing Python packages required to run the real OCR engine.
+
+### Related docs updated in this pass
+- `OCR_INTEGRATION_STATUS.md`
+- `OCR_IMPLEMENTATION_LOG.md`
+- `DEV_MOCK_SETUP.md`
+- `docs/bill-verification-mock-note.md`
+- `backend/services/ocr_python/README.md`
+
+## 2026-03-22 10:14 +07:00 — Cross-repo OCR routing alignment
+
+### Goal
+- Stop routing Bill Verification OCR to the wrong local backend.
+- Make the frontend in this repo call the real backend route that now lives in `scGlamLiff-reception`.
+
+### What changed
+- Kept `src/components/NewBillRecipientModal.jsx` as the upload/UI owner.
+- Kept `src/services/receiptOcrService.js` as the frontend OCR caller and response mapper.
+- Confirmed the active public backend route now lives in `scGlamLiff-reception/backend/src/routes/ocr.js`.
+- Added `VITE_OCR_API_BASE_URL=http://localhost:5050` to `.env.development.local`.
+- Kept `vite.config.js` proxy on `http://localhost:5050`.
+- Rewrote OCR status docs in this repo so they no longer claim the active backend OCR route is inside `scGlamLiFFF/scGlamLiFF/backend`.
+
+### Active path after this update
+1. `src/components/NewBillRecipientModal.jsx`
+2. `src/services/receiptOcrService.js`
+3. `scGlamLiff-reception/backend/src/routes/ocr.js`
+4. `scGlamLiff-reception/backend/src/controllers/ocrController.js`
+5. `scGlamLiff-reception/backend/src/services/ocr/receiptOcrService.js`
+6. `scGlamLiff-reception/backend/src/services/ocr/pythonOcrClient.js`
+7. `backend/services/ocr_python/app/main.py`
+
+### Legacy / inactive path
+- Local Node OCR modules under this repo's `backend/` folder are now legacy/WIP for Bill Verification OCR.
+- `VITE_USE_MOCK=true` and `rawTextOverride` are still mock/legacy paths only.
+
+### Validation in this pass
+- `npx vitest run src/services/receiptOcrService.test.js`
+- `npm run build`
+- `python -m compileall backend/services/ocr_python/app/main.py backend/services/ocr_python/app/services/receipt_parser.py`
+
+### Remaining blocker
+- Real OCR still cannot run locally until Python packages are installed:
+  - `fastapi`
+  - `paddle`
+  - `paddleocr`
+  - `python_multipart`
+- `../REPO_STATUS_AUDIT.md`

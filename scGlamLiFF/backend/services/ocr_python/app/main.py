@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 
 from .services.paddle_ocr_service import extract_receipt_text
@@ -17,14 +17,62 @@ async def health_check():
     return {"ok": True, "service": "ocr-python", "mode": "python-paddleocr"}
 
 
+def _build_error_response(code: str, message: str, *, status_code: int) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": False,
+            "code": code,
+            "message": message,
+            "errorCode": code,
+            "errorMessage": message,
+            "ocrStatus": "error",
+            "mode": "python-paddleocr",
+            "rawText": "",
+            "ocrText": "",
+            "parsed": {
+                "receiptLine": "",
+                "receiptLines": [],
+                "totalAmount": "",
+                "totalAmountValue": None,
+                "receiptDate": "",
+                "receiptTime": "",
+                "merchant": "",
+                "merchantName": "",
+            },
+            "receiptLine": "",
+            "receiptLines": [],
+            "totalAmount": "",
+            "totalAmountTHB": None,
+            "receiptDate": "",
+            "receiptTime": "",
+            "merchant": "",
+            "merchantName": "",
+            "ocrMetadata": {},
+            "error": {
+                "code": code,
+                "message": message,
+            },
+        },
+    )
+
+
 @app.post("/ocr/receipt")
 async def ocr_receipt(receipt: UploadFile = File(...)):
     if not receipt.content_type or not receipt.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="receipt must be an image file")
+        return _build_error_response(
+            "OCR_INVALID_FILE_TYPE",
+            "receipt must be an image file",
+            status_code=400,
+        )
 
     image_bytes = await receipt.read()
     if not image_bytes:
-        raise HTTPException(status_code=400, detail="receipt image is empty")
+        return _build_error_response(
+            "OCR_EMPTY_FILE",
+            "receipt image is empty",
+            status_code=400,
+        )
 
     try:
         preprocessed_image = preprocess_receipt_image(
@@ -43,26 +91,34 @@ async def ocr_receipt(receipt: UploadFile = File(...)):
 
         return {
             "success": True,
+            "code": "OCR_OK",
+            "message": "Receipt OCR completed",
+            "errorCode": "",
+            "errorMessage": "",
             "ocrStatus": ocr_status,
             "mode": ocr_result.get("mode", "python-paddleocr"),
             "rawText": raw_text,
+            "ocrText": raw_text,
             "parsed": parsed,
-            "meta": ocr_result.get("meta", {}),
+            "receiptLine": parsed.get("receiptLine", ""),
+            "receiptLines": parsed.get("receiptLines", []),
+            "totalAmount": parsed.get("totalAmount", ""),
+            "totalAmountTHB": parsed.get("totalAmountValue"),
+            "receiptDate": parsed.get("receiptDate", ""),
+            "receiptTime": parsed.get("receiptTime", ""),
+            "merchant": parsed.get("merchant", ""),
+            "merchantName": parsed.get("merchantName", ""),
+            "ocrMetadata": ocr_result.get("meta", {}),
         }
     except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
+        return _build_error_response(
+            "OCR_BAD_REQUEST",
+            str(error),
+            status_code=400,
+        )
     except Exception as error:  # pragma: no cover - depends on OCR runtime
-        return JSONResponse(
+        return _build_error_response(
+            "OCR_PROCESSING_FAILED",
+            str(error),
             status_code=500,
-            content={
-                "success": False,
-                "ocrStatus": "error",
-                "mode": "python-paddleocr",
-                "rawText": "",
-                "parsed": {
-                    "receiptLine": "",
-                    "totalAmount": "",
-                },
-                "error": str(error),
-            },
         )

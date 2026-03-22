@@ -21,11 +21,11 @@ const trimTrailingSlash = (value) => String(value || "").replace(/\/+$/, "");
 export const OCR_SERVICE_BASE_URL =
   trimTrailingSlash(process.env.OCR_SERVICE_BASE_URL) || "http://127.0.0.1:8001";
 
-export const OCR_SERVICE_ENABLED = parseBooleanEnv(process.env.OCR_SERVICE_ENABLED, false);
+export const OCR_SERVICE_ENABLED = parseBooleanEnv(process.env.OCR_SERVICE_ENABLED, true);
 
 export const OCR_SERVICE_FALLBACK_TO_MOCK = parseBooleanEnv(
   process.env.OCR_SERVICE_FALLBACK_TO_MOCK,
-  true
+  false
 );
 
 const buildOcrServiceUrl = (path) => `${OCR_SERVICE_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
@@ -52,17 +52,44 @@ export const requestPythonReceiptOcr = async ({ file }) => {
 
   formData.append("receipt", blob, file.originalname || "receipt-image");
 
-  const response = await fetch(buildOcrServiceUrl("/ocr/receipt"), {
-    method: "POST",
-    body: formData
-  });
+  const endpoint = buildOcrServiceUrl("/ocr/receipt");
+  let response;
+
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      body: formData
+    });
+  } catch (networkError) {
+    const error = new Error(
+      networkError?.message || "Python OCR service is unavailable"
+    );
+    error.status = 503;
+    error.code = "OCR_SERVICE_UNAVAILABLE";
+    error.payload = null;
+    throw error;
+  }
+
   const payload = await parseJsonSafely(response);
 
   if (!response.ok) {
+    const detail =
+      payload?.detail && typeof payload.detail === "object"
+        ? payload.detail
+        : null;
     const error = new Error(
-      payload?.detail || payload?.error || `Python OCR service request failed: ${response.status}`
+      detail?.message ||
+        payload?.message ||
+        payload?.error?.message ||
+        payload?.error ||
+        `Python OCR service request failed: ${response.status}`
     );
     error.status = response.status;
+    error.code =
+      detail?.code ||
+      payload?.code ||
+      payload?.error?.code ||
+      "OCR_SERVICE_UNAVAILABLE";
     error.payload = payload;
     throw error;
   }

@@ -303,15 +303,23 @@ const createReceiptOcrResultFromDraft = (draft) => {
   return {
     source: "api",
     rawText: trimText(receiptEvidence.ocr_raw_text),
+    ocrText: trimText(receiptEvidence.ocr_raw_text),
     receiptLine:
       trimText(receiptEvidence.receipt_line) ||
       trimText(receiptEvidence.receipt_number) ||
       "ไม่พบเลขที่ใบเสร็จ",
+    receiptLines: trimText(receiptEvidence.ocr_raw_text)
+      ? trimText(receiptEvidence.ocr_raw_text).split(/\r?\n/).filter(Boolean)
+      : [],
     totalAmount:
       totalAmountValue === null
         ? "ไม่พบราคาสินค้า"
         : `${totalAmountValue} THB`,
     totalAmountValue,
+    receiptDate: "",
+    receiptTime: "",
+    merchant: "",
+    merchantName: "",
     receiptNumber: trimText(receiptEvidence.receipt_number),
     receiptIdentifier: trimText(receiptEvidence.receipt_identifier),
     receiptImageRef: trimText(receiptEvidence.receipt_image_ref),
@@ -319,18 +327,24 @@ const createReceiptOcrResultFromDraft = (draft) => {
     ocrMetadata: isPlainObject(receiptEvidence.ocr_metadata)
       ? receiptEvidence.ocr_metadata
       : null,
+    errorCode: "",
+    errorMessage: "",
     statusNote: ""
   };
 };
 
 const getReceiptErrorMessage = (error) => {
   if (error instanceof ReceiptOcrApiError) {
-    if (error.reason === "missing_backend_endpoint") {
-      return "Backend SSOT ยังไม่มี endpoint OCR ใบเสร็จ จึงยังอ่านจากรูปจริงไม่ได้";
+    if (error.reason === "route_not_found") {
+      return "ไม่พบ OCR route ที่ backend ปลายทางนี้ กรุณาตรวจสอบ OCR base URL";
     }
 
     if (error.reason === "network_error") {
       return "เชื่อมต่อ OCR backend ไม่ได้ กรุณาลองใหม่อีกครั้ง";
+    }
+
+    if (error.reason === "service_unavailable") {
+      return "OCR service ยังไม่พร้อมใช้งาน กรุณาตรวจสอบ Python OCR service แล้วลองใหม่";
     }
 
     if (error.reason === "malformed_response") {
@@ -1076,6 +1090,28 @@ function NewBillRecipientModal({
                 {receiptOcrResult.totalAmount}
               </span>
             </div>
+            {receiptOcrResult.merchant ? (
+              <div className="new-bill-recipient-modal__receipt-row">
+                <span className="new-bill-recipient-modal__receipt-key">
+                  ร้านค้า :
+                </span>
+                <span className="new-bill-recipient-modal__receipt-value">
+                  {receiptOcrResult.merchant}
+                </span>
+              </div>
+            ) : null}
+            {receiptOcrResult.receiptDate || receiptOcrResult.receiptTime ? (
+              <div className="new-bill-recipient-modal__receipt-row">
+                <span className="new-bill-recipient-modal__receipt-key">
+                  วันที่เวลา :
+                </span>
+                <span className="new-bill-recipient-modal__receipt-value">
+                  {[receiptOcrResult.receiptDate, receiptOcrResult.receiptTime]
+                    .filter(Boolean)
+                    .join(" ")}
+                </span>
+              </div>
+            ) : null}
             {receiptOcrResult.statusNote ? (
               <p className="new-bill-recipient-modal__receipt-note">
                 {receiptOcrResult.statusNote}

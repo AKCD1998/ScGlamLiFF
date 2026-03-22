@@ -96,6 +96,29 @@ def _format_total_amount(value: str) -> str:
     return f"{value} THB" if value else ""
 
 
+def _parse_total_amount_value(value: str) -> float | None:
+    if not value:
+        return None
+
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _extract_receipt_line_parts(receipt_line: str) -> tuple[str, str]:
+    match = RECEIPT_LINE_PATTERN.search(str(receipt_line or ""))
+
+    if not match:
+        return "", ""
+
+    day, month, year = match.group("date").replace("-", "/").split("/")
+    receipt_date = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+    receipt_time = match.group("time")
+
+    return receipt_date, receipt_time
+
+
 def _is_receipt_meta_line(line: str) -> bool:
     return bool(
         re.search(r"\bBN[O0][:;\s]?[A-Z0-9\-:/]+\b", line, re.IGNORECASE)
@@ -314,14 +337,39 @@ def _find_total_amount_from_ocr_lines(ocr_lines: list[dict]) -> str:
     return max(fallback_candidates, key=lambda item: item[0])[1]
 
 
+def _find_merchant_name_from_text(lines: list[str]) -> str:
+    for line in lines:
+        normalized_line = line.strip()
+        if not normalized_line:
+            continue
+        if _LINE_HAS_RECEIPT_LINE_PATTERN.search(normalized_line):
+            continue
+        if not re.search(r"[A-Za-zก-๙]", normalized_line):
+            continue
+        if re.search(r"\b(total|amount|items|cash|change)\b", normalized_line, re.IGNORECASE):
+            continue
+        return normalized_line
+
+    return ""
+
+
 def parse_receipt_text(raw_text: str, ocr_lines: list[dict] | None = None) -> dict:
     lines = _split_receipt_lines(raw_text)
     normalized_ocr_lines = _normalize_ocr_lines(ocr_lines)
 
     receipt_line = _find_receipt_line_from_ocr_lines(normalized_ocr_lines) or _find_receipt_line_from_text(lines)
     total_amount = _find_total_amount_from_ocr_lines(normalized_ocr_lines) or _find_total_amount_from_text(lines)
+    receipt_date, receipt_time = _extract_receipt_line_parts(receipt_line)
+    total_amount_value = _parse_total_amount_value(total_amount)
+    merchant_name = _find_merchant_name_from_text(lines)
 
     return {
         "receiptLine": receipt_line,
+        "receiptLines": lines,
         "totalAmount": _format_total_amount(total_amount),
+        "totalAmountValue": total_amount_value,
+        "receiptDate": receipt_date,
+        "receiptTime": receipt_time,
+        "merchant": merchant_name,
+        "merchantName": merchant_name,
     }
