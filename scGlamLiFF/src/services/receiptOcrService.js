@@ -252,11 +252,19 @@ const isAbortTimeoutError = (error) =>
 const hasMeaningfulText = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
+const isUploadOnlyPayload = (payload) => {
+  const mode = getPayloadMode(payload);
+  const code = getPayloadCode(payload);
+
+  return mode === "receipt-upload-only" || code === "RECEIPT_UPLOAD_ACCEPTED";
+};
+
 const mapReceiptPayload = (payload) => {
   const rawText = collectRawText(payload);
   const lines = collectReceiptLines(payload, rawText);
   const totalAmountCandidate = findTotalAmountCandidate(lines);
   const source = isLegacyMockPayload(payload) ? "mock" : "api";
+  const uploadOnly = isUploadOnlyPayload(payload);
   const payloadMessage = getPayloadMessage(payload);
   const payloadCode = getPayloadCode(payload);
   const receiptLine =
@@ -366,19 +374,25 @@ const mapReceiptPayload = (payload) => {
       payload?.result?.ocr_status,
       payload?.result?.status
     ),
-    ocrMetadata: pickFirstObject(
-      payload?.ocrMetadata,
-      payload?.ocr_metadata,
-      payload?.result?.ocrMetadata,
-      payload?.result?.ocr_metadata
-    ),
+    ocrMetadata: uploadOnly
+      ? null
+      : pickFirstObject(
+          payload?.ocrMetadata,
+          payload?.ocr_metadata,
+          payload?.result?.ocrMetadata,
+          payload?.result?.ocr_metadata
+        ),
     ocrCode: payloadCode,
     ocrMessage: payloadMessage,
     errorCode: source === "mock" ? "" : payloadCode,
     errorMessage: source === "mock" ? "" : payloadMessage,
+    uploadOnly,
     statusNote: pickFirstText(
       payload?.statusNote,
       payload?.result?.statusNote,
+      uploadOnly
+        ? "อัปโหลดรูปใบเสร็จสำเร็จแล้ว ระบบจะเก็บรูปไว้เพื่อใช้ยืนยันภายหลัง"
+        : "",
       source === "mock"
         ? payloadMessage ||
             "ผลลัพธ์นี้มาจาก legacy mock OCR และจะไม่ถูกแนบเป็น receipt evidence จริง"
@@ -406,13 +420,18 @@ const hasMeaningfulReceiptResult = (result) =>
 
 const withReceiptDisplayFallbacks = (result) => ({
   ...result,
-  receiptLine: result.receiptLine || "ไม่พบเลขที่ใบเสร็จ",
+  receiptLine:
+    result.uploadOnly === true
+      ? result.receiptLine || ""
+      : result.receiptLine || "ไม่พบเลขที่ใบเสร็จ",
   totalAmount:
-    result.totalAmount ||
-    (typeof result.totalAmountValue === "number" &&
-    Number.isFinite(result.totalAmountValue)
-      ? `${result.totalAmountValue} THB`
-      : "ไม่พบราคาสินค้า")
+    result.uploadOnly === true
+      ? result.totalAmount || ""
+      : result.totalAmount ||
+        (typeof result.totalAmountValue === "number" &&
+        Number.isFinite(result.totalAmountValue)
+          ? `${result.totalAmountValue} THB`
+          : "ไม่พบราคาสินค้า")
 });
 
 export class ReceiptOcrApiError extends Error {
@@ -585,8 +604,8 @@ const requestReceiptOcr = async (file) => {
     const reason = isTimeout ? "timeout" : "network_error";
     const code = isTimeout ? "OCR_REQUEST_TIMEOUT" : "OCR_NETWORK_ERROR";
     const message = isTimeout
-      ? "OCR request ใช้เวลานานเกินกำหนด"
-      : "ไม่สามารถเชื่อมต่อ OCR backend ได้";
+      ? "การอัปโหลดรูปใบเสร็จใช้เวลานานเกินกำหนด"
+      : "ไม่สามารถเชื่อมต่อ backend สำหรับอัปโหลดใบเสร็จได้";
 
     logReceiptOcrDebug("request_failed", {
       endpoint,
@@ -650,7 +669,7 @@ export const processReceiptImage = async (file) => {
       reason: "malformed_response"
     });
 
-    throw new ReceiptOcrApiError("OCR backend ตอบกลับมา แต่ไม่มีข้อมูล OCR ที่ใช้งานได้", {
+    throw new ReceiptOcrApiError("backend ตอบกลับมา แต่ไม่มีข้อมูลการแนบใบเสร็จที่ใช้งานได้", {
       reason: "malformed_response",
       payload,
       endpoint,

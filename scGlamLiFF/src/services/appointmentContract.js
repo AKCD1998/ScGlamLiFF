@@ -1,4 +1,8 @@
 import { normalizeCanonicalBranch } from "./branchContract";
+import {
+  LIFF_RECEIPT_PROMO_BOOKING_CHANNEL,
+  LIFF_RECEIPT_PROMO_OPTION_SOURCE
+} from "../config/liffReceiptPromoCampaign";
 
 const RECEIPT_PLACEHOLDERS = new Set([
   "ไม่พบเลขที่ใบเสร็จ",
@@ -33,7 +37,11 @@ const getQueueTimeLabel = (row) => {
 const buildReceiptVerificationMetadata = (bookingSelection) => ({
   flow: "receipt_booking",
   booking_option_value: trimText(bookingSelection?.optionValue),
-  booking_option_source: trimText(bookingSelection?.source)
+  booking_option_source: trimText(bookingSelection?.source),
+  booking_channel:
+    trimText(bookingSelection?.source) === LIFF_RECEIPT_PROMO_OPTION_SOURCE
+      ? LIFF_RECEIPT_PROMO_BOOKING_CHANNEL
+      : ""
 });
 
 const buildDraftFlowMetadata = (bookingSelection) => {

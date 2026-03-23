@@ -125,3 +125,57 @@
 2. Check Render env for `OCR_SERVICE_BASE_URL` and confirm it points at the Python OCR deployment that actually serves `POST /ocr/receipt`.
 3. If `OCR_SERVICE_BASE_URL` is already correct, redeploy the Python OCR Render service because its live runtime does not match the repo code.
 4. Keep investigating LIFF staff login separately as a cross-site cookie persistence problem, not as a missing auth route.
+
+## Update 2026-03-22T20:57:00+07:00
+
+### Summary
+- Used local mock mode briefly to verify the LIFF UI in a normal browser, then restored `.env.development.local` to production-facing values.
+- Cleaned up the normal receipt preview state by removing the visible confirmation heading/helper while preserving accessibility labeling.
+- Added responsive CSS adjustments for receipt upload/preview panels across several device classes where the modal layout was visually cramped.
+
+### Files Updated
+- `scGlamLiFF/.env.development.local`
+- `scGlamLiFF/src/components/NewBillRecipientModal.jsx`
+- `scGlamLiFF/src/components/NewBillRecipientModal.css`
+- `scGlamLiFF/IMPLEMENTATION_LOG_RECEIPT_BOOKING.md`
+
+### Notes
+- These frontend changes were layout/testing focused only.
+- No LIFF-side OCR execution was reintroduced in this pass.
+
+## Update 2026-03-23T16:35:00+07:00
+
+### Summary
+- The LIFF receipt modal is now wired for the temporary promo-only booking option channel instead of the general booking catalog.
+- Frontend receipt upload handling now accepts upload-only backend responses and treats them as attachment success rather than expecting immediate OCR extraction.
+- Promo booking metadata is now passed through draft/create payloads via `booking_channel`.
+
+### Files Updated
+- `scGlamLiFF/src/config/liffReceiptPromoCampaign.js`
+- `scGlamLiFF/src/services/appointmentsService.js`
+- `scGlamLiFF/src/services/appointmentContract.js`
+- `scGlamLiFF/src/services/receiptOcrService.js`
+- `scGlamLiFF/src/components/NewBillRecipientModal.jsx`
+- `scGlamLiFF/IMPLEMENTATION_LOG_RECEIPT_BOOKING.md`
+
+### Validation
+- `npm test -- src/services/appointmentContract.test.js src/components/NewBillRecipientModal.test.jsx`
+  - passed
+
+## Update 2026-03-23T16:50:00+07:00
+
+### Deployment / QA Checklist
+- Deploy order:
+  1. migrate promo treatment in `scGlamLiff-reception/backend`
+  2. deploy backend
+  3. verify promo booking-options endpoint
+  4. deploy frontend
+  5. run mobile LIFF smoke test
+- Frontend smoke test:
+  - LIFF should show only the temporary promo option
+  - receipt upload should complete without expecting OCR extraction
+  - draft save should still work when date/time are incomplete
+  - final submit should still succeed through the existing appointment flow
+- Rollback:
+  - frontend rollback first if the issue is presentation-only
+  - backend rollback if promo selection or submit path fails

@@ -1,5 +1,6 @@
 import { apiUrl } from "../utils/apiBase";
 import { normalizeCanonicalBranch } from "./branchContract";
+import { LIFF_RECEIPT_PROMO_BOOKING_CHANNEL } from "../config/liffReceiptPromoCampaign";
 
 const JSON_HEADERS = {
   "Content-Type": "application/json"
@@ -77,10 +78,17 @@ const requestJson = async (path, options = {}) => {
   return payload;
 };
 
-export const getBookingOptions = async () => {
-  const payload = await requestJson("/api/appointments/booking-options", {
-    method: "GET"
-  });
+export const getBookingOptions = async ({
+  channel = LIFF_RECEIPT_PROMO_BOOKING_CHANNEL
+} = {}) => {
+  const payload = await requestJson(
+    `/api/appointments/booking-options${buildQueryString({
+      channel
+    })}`,
+    {
+      method: "GET"
+    }
+  );
 
   return Array.isArray(payload?.options) ? payload.options : [];
 };

@@ -703,3 +703,105 @@
   - `paddleocr`
   - `python_multipart`
 - `../REPO_STATUS_AUDIT.md`
+
+## 2026-03-22 20:57 +07:00 — local test mode, preview cleanup, and mobile receipt-upload panel tuning
+
+### Goal
+- Make the LIFF/frontend easier to test locally in a browser, then restore production-facing behavior while tightening the receipt preview/upload panel layout on smaller devices.
+
+### What changed
+- Updated `.env.development.local`
+  - temporarily enabled `VITE_USE_MOCK=true` and local debug output to test the LIFF UI outside LINE
+  - then restored production-facing values:
+    - `VITE_USE_MOCK=false`
+    - `VITE_API_BASE_URL=https://scglamliff-reception.onrender.com`
+    - `VITE_ENABLE_DEBUG=false`
+- Updated `src/components/NewBillRecipientModal.jsx`
+  - removed the visible preview-state title/helper for the normal receipt confirmation state
+  - kept an accessibility-safe hidden label so modal `aria-labelledby` remains valid
+- Updated `src/components/NewBillRecipientModal.css`
+  - added viewport-specific layout tuning for:
+    - iPhone SE / short 420px-and-under viewports
+    - Galaxy S8+ class 420px mobile viewport
+    - iPad Mini portrait
+    - 430px-wide tall mobile viewport such as iPhone 14 Pro Max
+  - changes focused on:
+    - upload/preview panel min-height
+    - preview image area sizing
+    - action button sizing and ordering
+    - title/helper one-line behavior in selected breakpoints
+    - camera icon scale in interactive upload state
+
+### UI outcome
+- The receipt preview panel is less cramped on short mobile screens.
+- The interactive upload panel now has device-specific tweaks where the previous layout stacked awkwardly or wrapped text unnecessarily.
+- No booking or API contract changed in this frontend pass.
+
+## 2026-03-23 16:35 +07:00 — switched LIFF receipt flow to promo-only booking option + attachment-only receipt summary
+
+### Goal
+- Make this LIFF flow consume only the temporary receipt promo booking option from backend.
+- Stop assuming the receipt upload response must contain immediate OCR data.
+
+### What changed
+- Added `src/config/liffReceiptPromoCampaign.js`
+  - defines the LIFF promo booking channel and promo source marker
+- Updated `src/services/appointmentsService.js`
+  - `getBookingOptions(...)` now requests `/api/appointments/booking-options?channel=liff_receipt_promo_q2_2026`
+- Updated `src/services/appointmentContract.js`
+  - promo booking selections now add `booking_channel` into receipt verification metadata / draft flow metadata
+- Updated `src/services/receiptOcrService.js`
+  - detects backend upload-only responses such as `RECEIPT_UPLOAD_ACCEPTED`
+  - maps them into a usable frontend receipt result without fabricating OCR metadata
+  - keeps `receiptImageRef` as the meaningful success payload
+- Updated `src/components/NewBillRecipientModal.jsx`
+  - auto-selects the only returned promo booking option when appropriate
+  - requires receipt attachment before save draft / save booking when the promo option is selected
+  - renders uploaded receipt success as attachment confirmation instead of fake OCR extraction rows
+  - updates processing/error wording from OCR-first language to upload/attachment language where the active flow no longer does OCR
+
+### Runtime outcome
+- This modal now asks backend only for the LIFF promo option path.
+- Uploaded receipts are treated as attachment evidence, not immediate OCR output.
+- Draft save and final submit still use the existing backend draft/create APIs.
+
+## 2026-03-23 16:50 +07:00 — deployment and QA checklist for LIFF receipt promo
+
+### Exact deploy order
+1. Run backend migration in `scGlamLiff-reception/backend`:
+   - `npm run migrate:liff-receipt-promo-treatment`
+2. Deploy backend `scGlamLiff-reception`
+3. Verify backend promo option endpoint is healthy
+4. Deploy frontend `scGlamLiFFF/scGlamLiFF`
+5. Validate the LIFF flow on mobile
+
+### Pre-deploy checks
+- Confirm frontend is still pointing to production backend
+- Confirm backend has the promo treatment row available after migration
+- Confirm receipt upload storage is healthy because the promo flow still requires receipt attachment
+- Confirm the intended LIFF-only behavior:
+  - no smooth package selection
+  - one promo option only
+
+### Post-deploy smoke tests
+- Open LIFF booking modal and confirm only one promo option is shown
+- Attach a receipt image and confirm success messaging is attachment-oriented, not OCR-oriented
+- Save a draft with incomplete appointment date/time and confirm success
+- Re-open the draft and confirm receipt attachment remains visible
+- Complete date/time and submit the booking successfully
+- Confirm no OCR-specific loading or extracted-field dependency blocks the flow
+
+### Staff mobile tester script
+1. Open LIFF
+2. Start a new receipt promo booking
+3. Confirm there is only one booking option
+4. Attach a receipt photo
+5. Save draft without date/time
+6. Re-open draft
+7. Add date/time
+8. Submit booking
+9. Confirm booking finishes normally
+
+### Rollback notes
+- If LIFF UI is wrong but backend is healthy, roll back frontend only
+- If booking options or final submit fail because of promo backend logic, roll back backend and keep receipt upload flow unchanged

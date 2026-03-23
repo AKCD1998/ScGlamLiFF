@@ -34,6 +34,10 @@ import {
   processReceiptImage,
   ReceiptOcrApiError
 } from "../services/receiptOcrService";
+import {
+  LIFF_RECEIPT_PROMO_BOOKING_CHANNEL,
+  LIFF_RECEIPT_PROMO_OPTION_SOURCE
+} from "../config/liffReceiptPromoCampaign";
 import { buildTimeUtc, buildVersion } from "../config/env";
 import "./NewBillRecipientModal.css";
 
@@ -300,20 +304,28 @@ const createReceiptOcrResultFromDraft = (draft) => {
     Number.isFinite(receiptEvidence.total_amount_thb)
       ? receiptEvidence.total_amount_thb
       : null;
+  const uploadOnly =
+    Boolean(trimText(receiptEvidence.receipt_image_ref)) &&
+    !trimText(receiptEvidence.receipt_line) &&
+    !trimText(receiptEvidence.receipt_number) &&
+    totalAmountValue === null &&
+    !trimText(receiptEvidence.ocr_raw_text);
 
   return {
     source: "api",
     rawText: trimText(receiptEvidence.ocr_raw_text),
     ocrText: trimText(receiptEvidence.ocr_raw_text),
-    receiptLine:
-      trimText(receiptEvidence.receipt_line) ||
-      trimText(receiptEvidence.receipt_number) ||
-      "ไม่พบเลขที่ใบเสร็จ",
+    receiptLine: uploadOnly
+      ? ""
+      : trimText(receiptEvidence.receipt_line) ||
+        trimText(receiptEvidence.receipt_number) ||
+        "ไม่พบเลขที่ใบเสร็จ",
     receiptLines: trimText(receiptEvidence.ocr_raw_text)
       ? trimText(receiptEvidence.ocr_raw_text).split(/\r?\n/).filter(Boolean)
       : [],
-    totalAmount:
-      totalAmountValue === null
+    totalAmount: uploadOnly
+      ? ""
+      : totalAmountValue === null
         ? "ไม่พบราคาสินค้า"
         : `${totalAmountValue} THB`,
     totalAmountValue,
@@ -328,42 +340,41 @@ const createReceiptOcrResultFromDraft = (draft) => {
     ocrMetadata: isPlainObject(receiptEvidence.ocr_metadata)
       ? receiptEvidence.ocr_metadata
       : null,
+    uploadOnly,
     errorCode: "",
     errorMessage: "",
-    statusNote: ""
+    statusNote: uploadOnly
+      ? "แนบรูปใบเสร็จไว้ในระบบแล้ว รอใช้ยืนยันภายหลัง"
+      : ""
   };
 };
 
 const getReceiptErrorMessage = (error) => {
   if (error instanceof ReceiptOcrApiError) {
     if (error.reason === "route_not_found") {
-      return "Backend ปลายทางนี้ยังไม่มี route /api/ocr/receipt กรุณาตรวจสอบ OCR base URL หรือ deployment ของ backend";
+      return "Backend ปลายทางนี้ยังไม่มี route /api/ocr/receipt กรุณาตรวจสอบ deployment ของ backend";
     }
 
     if (error.reason === "network_error") {
-      return "เชื่อมต่อ backend OCR ไม่ได้ กรุณาตรวจสอบเครือข่ายหรือ CORS แล้วลองใหม่";
+      return "เชื่อมต่อ backend อัปโหลดใบเสร็จไม่ได้ กรุณาตรวจสอบเครือข่ายหรือ CORS แล้วลองใหม่";
     }
 
     if (error.reason === "timeout") {
-      return "OCR request ใช้เวลานานเกินกำหนด กรุณาลองใหม่หรือตรวจสอบ downstream OCR service";
-    }
-
-    if (error.reason === "service_unavailable") {
-      return "OCR downstream service ยังไม่พร้อมใช้งาน แม้ backend route จะตอบแล้ว กรุณาตรวจสอบ Python OCR service";
+      return "การอัปโหลดรูปใบเสร็จใช้เวลานานเกินกำหนด กรุณาลองใหม่";
     }
 
     if (error.reason === "malformed_response") {
-      return "OCR backend ตอบกลับมาไม่ครบ จึงยังอ่านข้อมูลใบเสร็จไม่ได้";
+      return "backend ตอบกลับมาไม่ครบ จึงยังแนบรูปใบเสร็จไม่ได้";
     }
 
     if (error.reason === "auth_required") {
       return "ยังไม่ได้เข้าสู่ระบบพนักงาน จึงเรียก OCR backend ไม่ได้";
     }
 
-    return error.message || "ไม่สามารถอ่านข้อมูลจากใบเสร็จได้ ลองใช้รูปใหม่อีกครั้ง";
+    return error.message || "ไม่สามารถแนบรูปใบเสร็จได้ ลองใช้รูปใหม่อีกครั้ง";
   }
 
-  return error?.message || "ไม่สามารถอ่านข้อมูลจากใบเสร็จได้ ลองใช้รูปใหม่อีกครั้ง";
+  return error?.message || "ไม่สามารถแนบรูปใบเสร็จได้ ลองใช้รูปใหม่อีกครั้ง";
 };
 
 const formatBuildStamp = () => {
@@ -576,6 +587,10 @@ const getSelectionSubnote = (bookingSelection) => {
     return "";
   }
 
+  if (bookingSelection.source === LIFF_RECEIPT_PROMO_OPTION_SOURCE) {
+    return "ใช้สิทธิ์โปรโมชันชั่วคราวผ่าน LIFF";
+  }
+
   if (bookingSelection.packageId) {
     return "เก็บค่า treatment_id และ package_id จาก booking options แล้ว";
   }
@@ -749,7 +764,9 @@ function NewBillRecipientModal({
 
     const loadBookingOptions = async () => {
       try {
-        const options = await getBookingOptions();
+        const options = await getBookingOptions({
+          channel: LIFF_RECEIPT_PROMO_BOOKING_CHANNEL
+        });
 
         if (!isActive) {
           return;
@@ -779,6 +796,33 @@ function NewBillRecipientModal({
       isActive = false;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || currentDraftId || trimText(formValues.bookingOptionValue)) {
+      return;
+    }
+
+    if (bookingOptionsStatus !== "ready" || bookingOptions.length !== 1) {
+      return;
+    }
+
+    const [onlyOption] = bookingOptions;
+    if (!onlyOption?.value) {
+      return;
+    }
+
+    setFormValues((current) => ({
+      ...current,
+      bookingOptionValue: onlyOption.value
+    }));
+    setBookingSelection(toBookingSelection(onlyOption));
+  }, [
+    bookingOptions,
+    bookingOptionsStatus,
+    currentDraftId,
+    formValues.bookingOptionValue,
+    open
+  ]);
 
   useEffect(() => {
     const hasHydratedDraftSelection =
@@ -1097,21 +1141,25 @@ function NewBillRecipientModal({
           <div className="new-bill-recipient-modal__receipt-details">
             <div className="new-bill-recipient-modal__receipt-row">
               <span className="new-bill-recipient-modal__receipt-key">
-                เลขที่ใบเสร็จ :
+                สถานะใบเสร็จ :
               </span>
               <span className="new-bill-recipient-modal__receipt-value">
-                {receiptOcrResult.receiptLine}
+                {receiptOcrResult.uploadOnly
+                  ? "แนบรูปใบเสร็จแล้ว"
+                  : receiptOcrResult.receiptLine}
               </span>
             </div>
-            <div className="new-bill-recipient-modal__receipt-row">
-              <span className="new-bill-recipient-modal__receipt-key">
-                ราคาสินค้า :
-              </span>
-              <span className="new-bill-recipient-modal__receipt-value">
-                {receiptOcrResult.totalAmount}
-              </span>
-            </div>
-            {receiptOcrResult.merchant ? (
+            {!receiptOcrResult.uploadOnly ? (
+              <div className="new-bill-recipient-modal__receipt-row">
+                <span className="new-bill-recipient-modal__receipt-key">
+                  ราคาสินค้า :
+                </span>
+                <span className="new-bill-recipient-modal__receipt-value">
+                  {receiptOcrResult.totalAmount}
+                </span>
+              </div>
+            ) : null}
+            {!receiptOcrResult.uploadOnly && receiptOcrResult.merchant ? (
               <div className="new-bill-recipient-modal__receipt-row">
                 <span className="new-bill-recipient-modal__receipt-key">
                   ร้านค้า :
@@ -1121,7 +1169,8 @@ function NewBillRecipientModal({
                 </span>
               </div>
             ) : null}
-            {receiptOcrResult.receiptDate || receiptOcrResult.receiptTime ? (
+            {!receiptOcrResult.uploadOnly &&
+            (receiptOcrResult.receiptDate || receiptOcrResult.receiptTime) ? (
               <div className="new-bill-recipient-modal__receipt-row">
                 <span className="new-bill-recipient-modal__receipt-key">
                   วันที่เวลา :
@@ -1178,10 +1227,10 @@ function NewBillRecipientModal({
             id="new-bill-recipient-modal-title"
             className="new-bill-recipient-modal__title"
           >
-            กำลังประมวลผลใบเสร็จ
+            กำลังอัปโหลดใบเสร็จ
           </h2>
           <p className="new-bill-recipient-modal__helper">
-            กำลังเตรียมข้อมูล OCR สำหรับใบเสร็จที่เลือก
+            กำลังบันทึกรูปใบเสร็จที่เลือกเข้าสู่ระบบ
           </p>
         </div>
       );
@@ -1397,13 +1446,16 @@ function NewBillRecipientModal({
   const getSubmitValidationMessage = () => {
     const customerFullName = trimText(formValues.name);
     const phoneDigits = normalizePhoneDigits(formValues.phone);
+    const hasReceiptAttachment = Boolean(
+      selectedReceiptFile || trimText(receiptOcrResult?.receiptImageRef)
+    );
 
     if (receiptStage === "processing") {
-      return "กรุณารอให้ระบบอ่านข้อมูลใบเสร็จให้เสร็จก่อน";
+      return "กรุณารอให้อัปโหลดรูปใบเสร็จให้เสร็จก่อน";
     }
 
     if (selectedReceiptFile && !isReceiptOcrResolved) {
-      return "กรุณายืนยันข้อมูลใบเสร็จให้เสร็จก่อนบันทึก";
+      return "กรุณายืนยันการแนบรูปใบเสร็จให้เสร็จก่อนบันทึก";
     }
 
     if (!customerFullName) {
@@ -1424,6 +1476,13 @@ function NewBillRecipientModal({
 
     if (!bookingSelection.treatmentId) {
       return "กรุณาเลือกโปรโมชั่นหรือบริการ";
+    }
+
+    if (
+      bookingSelection.source === LIFF_RECEIPT_PROMO_OPTION_SOURCE &&
+      !hasReceiptAttachment
+    ) {
+      return "กรุณาแนบรูปใบเสร็จก่อนบันทึก";
     }
 
     if (bookingSelection.source === "package" && !bookingSelection.packageId) {
@@ -1456,13 +1515,16 @@ function NewBillRecipientModal({
   const getDraftValidationMessage = () => {
     const customerFullName = trimText(formValues.name);
     const phoneDigits = normalizePhoneDigits(formValues.phone);
+    const hasReceiptAttachment = Boolean(
+      selectedReceiptFile || trimText(receiptOcrResult?.receiptImageRef)
+    );
 
     if (receiptStage === "processing") {
-      return "กรุณารอให้ระบบอ่านข้อมูลใบเสร็จให้เสร็จก่อน";
+      return "กรุณารอให้อัปโหลดรูปใบเสร็จให้เสร็จก่อน";
     }
 
     if (selectedReceiptFile && !isReceiptOcrResolved) {
-      return "กรุณายืนยันข้อมูลใบเสร็จให้เสร็จก่อนบันทึกร่าง";
+      return "กรุณายืนยันการแนบรูปใบเสร็จให้เสร็จก่อนบันทึกร่าง";
     }
 
     if (!customerFullName) {
@@ -1483,6 +1545,13 @@ function NewBillRecipientModal({
 
     if (!bookingSelection.treatmentId) {
       return "กรุณาเลือกโปรโมชั่นหรือบริการก่อนบันทึกร่าง";
+    }
+
+    if (
+      bookingSelection.source === LIFF_RECEIPT_PROMO_OPTION_SOURCE &&
+      !hasReceiptAttachment
+    ) {
+      return "กรุณาแนบรูปใบเสร็จก่อนบันทึกร่าง";
     }
 
     if (bookingSelection.source === "package" && !bookingSelection.packageId) {
