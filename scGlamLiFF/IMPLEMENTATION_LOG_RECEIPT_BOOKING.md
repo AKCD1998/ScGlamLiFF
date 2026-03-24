@@ -658,6 +658,56 @@
 - During this pass, the current environment was still missing Python packages required to run the real OCR engine.
 
 ### Related docs updated in this pass
+
+## Update 2026-03-24T11:20:00+07:00
+
+### Scope
+- Harden the LIFF startup gate so an active branch device does not remain on the generic "checking staff session" screen after the backend has already established that the staff cookie is missing.
+
+### Root cause
+- `src/context/BranchDeviceContext.jsx` previously reset every active-device lookup back to `staffSessionStatus: "idle"` unless the session was already authenticated.
+- That mapping ignored the backend lookup hint `staffCookiePresent:false`, even though the lookup had already proved the LIFF session had no staff cookie.
+- The provider also waited for the async `getMyStaffSession()` rejection path before leaving the checking UI. If the 401 response event arrived first but the rejection path was delayed, the gate could continue rendering the checking screen.
+
+### What changed
+- Active lookup snapshots now preserve or force `staffSessionStatus: "missing_staff_auth"` when the backend says `staffCookiePresent:false`.
+- A `staff_session` auth response with `401` / `missing_staff_auth` now hard-transitions the provider to `missing_staff_auth` immediately instead of waiting only on the later catch path.
+- Added lightweight frontend debug logs for:
+  - startup gate view selection
+  - staff session check start
+  - staff session success
+  - staff session 401 / error
+- Extended the debug payload summary to include `staffCookiePresent` and `staffAuthMethod`.
+
+### Files changed
+- `src/components/BranchDeviceStartupGate.jsx`
+- `src/components/BranchDeviceStartupGate.test.jsx`
+- `src/context/BranchDeviceContext.jsx`
+- `src/utils/branchDeviceGuardDebug.js`
+- `IMPLEMENTATION_LOG_RECEIPT_BOOKING.md`
+
+## Update 2026-03-24T12:15:00+07:00
+
+### Scope
+- Add a frontend-only safety fallback so the LIFF startup gate never stays stuck on the staff-session checking screen once `/api/auth/me` has already returned `401`.
+
+### What changed
+- The startup gate now treats a known `/api/auth/me` `401` in debug/state evidence as immediate proof that the staff session is missing, even if the provider is still temporarily in `checking`.
+- Added a 1500 ms timeout safeguard: if the gate is still in `checking` after a known auth `401`, it hard-forces the provider into the staff-login recovery state.
+- Updated the Thai copy to show the clearer message:
+  - `ไม่พบ session พนักงาน กรุณาเข้าสู่ระบบ`
+- Added explicit frontend debug logs for:
+  - `device_registration_resolved`
+  - `auth_me_started`
+  - `auth_me_200`
+  - `auth_me_401`
+  - `forced_transition_to_login`
+
+### Files changed
+- `src/components/BranchDeviceStartupGate.jsx`
+- `src/components/BranchDeviceStartupGate.test.jsx`
+- `src/context/BranchDeviceContext.jsx`
+- `IMPLEMENTATION_LOG_RECEIPT_BOOKING.md`
 - `OCR_INTEGRATION_STATUS.md`
 - `OCR_IMPLEMENTATION_LOG.md`
 - `DEV_MOCK_SETUP.md`

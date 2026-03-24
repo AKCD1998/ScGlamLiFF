@@ -67,6 +67,14 @@ export const summarizeBranchDevicePayload = (payload) => {
     registrationId:
       trimText(payload.registrationId || payload.registration?.id) || null,
     lineUserId: maskLineUserId(lineIdentity?.line_user_id),
+    staffCookiePresent:
+      typeof payload.staffCookiePresent === "boolean"
+        ? payload.staffCookiePresent
+        : typeof payload.staff_cookie_present === "boolean"
+          ? payload.staff_cookie_present
+          : null,
+    staffAuthMethod:
+      trimText(payload.staffAuthMethod || payload.staff_auth_method) || null,
     code: trimText(payload.code) || null,
     error: trimText(payload.error) || null
   };

@@ -3,7 +3,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import BranchDeviceStartupGate from "./BranchDeviceStartupGate";
-import { BranchDeviceProvider } from "../context/BranchDeviceContext";
+import {
+  BranchDeviceContext,
+  BranchDeviceProvider
+} from "../context/BranchDeviceContext";
 import { BranchDeviceRegistrationApiError } from "../services/branchDeviceRegistrationService";
 
 const {
@@ -92,6 +95,7 @@ describe("BranchDeviceStartupGate", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     vi.clearAllMocks();
   });
@@ -128,6 +132,7 @@ describe("BranchDeviceStartupGate", () => {
       ok: true,
       registered: true,
       active: true,
+      staffCookiePresent: false,
       branch_id: "branch-003",
       registration: {
         id: "registration-uuid",
@@ -140,12 +145,102 @@ describe("BranchDeviceStartupGate", () => {
 
     expect(await screen.findByText("ต้องเข้าสู่ระบบพนักงาน")).toBeTruthy();
     expect(
-      screen.getByText(
-        "อุปกรณ์นี้ลงทะเบียนแล้ว แต่ session พนักงานหายหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่ก่อนใช้งาน"
-      )
-    ).toBeTruthy();
+      screen.getAllByText("ไม่พบ session พนักงาน กรุณาเข้าสู่ระบบ").length
+    ).toBeGreaterThan(0);
     expect(screen.queryByTestId("guard-ready")).toBeNull();
-    expect(getMyStaffSessionMock).toHaveBeenCalledTimes(1);
+    expect(getMyStaffSessionMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("hard-transitions out of checking as soon as auth/me reports missing_staff_auth", async () => {
+    getMyBranchDeviceRegistrationMock.mockResolvedValue({
+      ok: true,
+      registered: true,
+      active: true,
+      branch_id: "branch-003",
+      registration: {
+        id: "registration-uuid",
+        branch_id: "branch-003",
+        status: "active"
+      }
+    });
+    getMyStaffSessionMock.mockImplementation(async ({ onEvent } = {}) => {
+      onEvent?.({
+        type: "staff_auth_response",
+        operation: "staff_session",
+        status: 401,
+        body: {
+          reason: "missing_staff_auth"
+        }
+      });
+
+      await new Promise(() => {});
+    });
+
+    renderGuard();
+
+    expect(await screen.findByText("ต้องเข้าสู่ระบบพนักงาน")).toBeTruthy();
+    expect(
+      screen.getAllByText("ไม่พบ session พนักงาน กรุณาเข้าสู่ระบบ").length
+    ).toBeGreaterThan(0);
+  });
+
+  it("forces transition out of checking after the timeout safeguard when auth 401 is already known", async () => {
+    vi.useFakeTimers();
+
+    const forceStaffLoginRecovery = vi.fn();
+
+    render(
+      <BranchDeviceContext.Provider
+        value={{
+          status: "active",
+          reasonCode: "active",
+          guardEnabled: true,
+          branchId: "branch-003",
+          registration: {
+            id: "registration-uuid",
+            branch_id: "branch-003",
+            status: "active"
+          },
+          lineIdentity: null,
+          errorMessage: "",
+          submitStatus: "idle",
+          submitError: "",
+          staffSessionStatus: "checking",
+          staffLoginStatus: "idle",
+          staffLoginError: "",
+          staffUser: null,
+          debug: {
+            lastStaffSessionStatus: 401,
+            lastStaffSessionResponse: {
+              reason: "missing_staff_auth"
+            }
+          },
+          refreshRegistration: async () => null,
+          refreshStaffSession: async () => null,
+          forceStaffLoginRecovery,
+          registerDevice: async () => null,
+          loginStaff: async () => null
+        }}
+      >
+        <BranchDeviceStartupGate>
+          <div data-testid="guard-ready">พร้อมใช้งาน</div>
+        </BranchDeviceStartupGate>
+      </BranchDeviceContext.Provider>
+    );
+
+    expect(screen.getByText("ต้องเข้าสู่ระบบพนักงาน")).toBeTruthy();
+    expect(
+      screen.getAllByText("ไม่พบ session พนักงาน กรุณาเข้าสู่ระบบ").length
+    ).toBeGreaterThan(0);
+
+    await vi.advanceTimersByTimeAsync(1600);
+
+    expect(forceStaffLoginRecovery).toHaveBeenCalledWith({
+      source: "startup_gate_timeout_safeguard",
+      reason: "missing_staff_auth"
+    });
+
+    vi.useRealTimers();
   });
 
   it("recovers an active device by logging staff back in before unlocking the app", async () => {

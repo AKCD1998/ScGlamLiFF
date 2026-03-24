@@ -6,7 +6,19 @@ import {
   getBookingBranchLabel
 } from "../services/branchCatalog";
 import { useBranchDevice } from "../context/BranchDeviceContext";
-import { isBranchDeviceGuardDebugEnabled } from "../utils/branchDeviceGuardDebug";
+import {
+  isBranchDeviceGuardDebugEnabled,
+  logBranchDeviceGuardDebug
+} from "../utils/branchDeviceGuardDebug";
+
+const STAFF_SESSION_FALLBACK_TIMEOUT_MS = 1500;
+const MISSING_STAFF_SESSION_MESSAGE = "ไม่พบ session พนักงาน กรุณาเข้าสู่ระบบ";
+
+const hasKnownMissingStaffSession = ({ debug, staffSessionStatus }) =>
+  staffSessionStatus !== "authenticated" &&
+  (staffSessionStatus === "missing_staff_auth" ||
+    debug?.lastStaffSessionStatus === 401 ||
+    debug?.lastStaffSessionResponse?.reason === "missing_staff_auth");
 
 function BranchDeviceGuardDebugPanel({ debug, status, reasonCode }) {
   if (!isBranchDeviceGuardDebugEnabled()) {
@@ -329,6 +341,7 @@ function BranchDeviceInactivePanel() {
 
 function BranchDeviceStaffSessionRecoveryForm() {
   const {
+    debug,
     loginStaff,
     refreshStaffSession,
     staffLoginError,
@@ -339,8 +352,14 @@ function BranchDeviceStaffSessionRecoveryForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const isStaffAuthenticated = staffSessionStatus === "authenticated";
-  const isCheckingSession = staffSessionStatus === "checking";
+  const effectiveStaffSessionStatus = hasKnownMissingStaffSession({
+    debug,
+    staffSessionStatus
+  })
+    ? "missing_staff_auth"
+    : staffSessionStatus;
+  const isStaffAuthenticated = effectiveStaffSessionStatus === "authenticated";
+  const isCheckingSession = effectiveStaffSessionStatus === "checking";
   const isLoggingIn = staffLoginStatus === "logging_in";
   const loginDisabled =
     isLoggingIn ||
@@ -425,13 +444,13 @@ function BranchDeviceStaffSessionRecoveryForm() {
           </button>
         </div>
 
-        {staffSessionStatus === "missing_staff_auth" ? (
+        {effectiveStaffSessionStatus === "missing_staff_auth" ? (
           <p style={{ margin: 0, color: "#9f2323" }}>
-            staff cookie ของ LIFF session นี้หายหรือหมดอายุ กรุณาเข้าสู่ระบบพนักงานใหม่ก่อนใช้งาน
+            {MISSING_STAFF_SESSION_MESSAGE}
           </p>
         ) : null}
 
-        {staffSessionStatus === "error" ? (
+        {effectiveStaffSessionStatus === "error" ? (
           <p style={{ margin: 0, color: "#9f2323" }}>
             ตรวจสอบ session พนักงานไม่สำเร็จ ลองตรวจสอบอีกครั้งหรือเข้าสู่ระบบใหม่
           </p>
@@ -461,20 +480,64 @@ export default function BranchDeviceStartupGate({ children }) {
   const {
     debug,
     errorMessage,
+    forceStaffLoginRecovery,
     reasonCode,
     refreshRegistration,
     staffSessionStatus,
     status
   } = useBranchDevice();
+  const knownMissingStaffSession = hasKnownMissingStaffSession({
+    debug,
+    staffSessionStatus
+  });
+  const shouldShowStaffLoginUi = status === "active" && knownMissingStaffSession;
+  const isCheckingStaffSession =
+    status === "active" &&
+    !shouldShowStaffLoginUi &&
+    (staffSessionStatus === "idle" || staffSessionStatus === "checking");
+  const gateView =
+    status === "active" && staffSessionStatus === "authenticated"
+      ? "ready"
+      : isCheckingStaffSession
+        ? "checking_staff_session"
+        : status === "active"
+          ? "staff_login_required"
+          : status;
+
+  useEffect(() => {
+    logBranchDeviceGuardDebug("startup_gate_view", {
+      gateView,
+      status,
+      reasonCode,
+      staffSessionStatus
+    });
+  }, [gateView, reasonCode, staffSessionStatus, status]);
+
+  useEffect(() => {
+    if (!(status === "active" && staffSessionStatus === "checking" && knownMissingStaffSession)) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      forceStaffLoginRecovery({
+        source: "startup_gate_timeout_safeguard",
+        reason: "missing_staff_auth"
+      });
+    }, STAFF_SESSION_FALLBACK_TIMEOUT_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    forceStaffLoginRecovery,
+    knownMissingStaffSession,
+    staffSessionStatus,
+    status
+  ]);
 
   if (status === "active" && staffSessionStatus === "authenticated") {
     return children;
   }
 
-  if (
-    status === "active" &&
-    (staffSessionStatus === "idle" || staffSessionStatus === "checking")
-  ) {
+  if (isCheckingStaffSession) {
     return (
       <BranchDevicePanel
         title="กำลังตรวจสอบ session พนักงาน"
@@ -490,7 +553,7 @@ export default function BranchDeviceStartupGate({ children }) {
     return (
       <BranchDevicePanel
         title="ต้องเข้าสู่ระบบพนักงาน"
-        message="อุปกรณ์นี้ลงทะเบียนแล้ว แต่ session พนักงานหายหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่ก่อนใช้งาน"
+        message={MISSING_STAFF_SESSION_MESSAGE}
         debug={debug}
         status={status}
         reasonCode={reasonCode}

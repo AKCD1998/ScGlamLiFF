@@ -20,7 +20,7 @@ import {
 const LOOKUP_URL = "/api/branch-device-registrations/me";
 const REGISTER_URL = "/api/branch-device-registrations";
 
-const BranchDeviceContext = createContext({
+export const BranchDeviceContext = createContext({
   status: "loading",
   reasonCode: "",
   guardEnabled: false,
@@ -37,6 +37,7 @@ const BranchDeviceContext = createContext({
   debug: null,
   refreshRegistration: async () => {},
   refreshStaffSession: async () => {},
+  forceStaffLoginRecovery: () => {},
   registerDevice: async () => {},
   loginStaff: async () => {}
 });
@@ -342,13 +343,43 @@ const createLoadingState = (currentState) =>
     }
   });
 
+const isMissingStaffAuthReason = (value) =>
+  trimText(value) === "missing_staff_auth";
+
+const getLookupStaffCookiePresent = (snapshot) => {
+  if (typeof snapshot?.staffCookiePresent === "boolean") {
+    return snapshot.staffCookiePresent;
+  }
+
+  if (typeof snapshot?.staff_cookie_present === "boolean") {
+    return snapshot.staff_cookie_present;
+  }
+
+  return null;
+};
+
+const getStaffSessionStatusFromError = (error) =>
+  isMissingStaffAuthReason(error?.reason || error?.payload?.reason) ||
+  error?.status === 401
+    ? "missing_staff_auth"
+    : "error";
+
 const createUiStateFromLookupSnapshot = (snapshot, currentState) => {
   const reasonCode =
     trimText(snapshot?.reason) ||
     (!snapshot?.registered ? "not_registered" : snapshot?.active ? "active" : "inactive");
   const branchId = trimText(snapshot?.branchId || snapshot?.branch_id);
+  const staffCookiePresent = getLookupStaffCookiePresent(snapshot);
+  const shouldKeepMissingStaffAuth =
+    reasonCode === "active" &&
+    currentState?.staffSessionStatus === "missing_staff_auth" &&
+    staffCookiePresent !== true;
+  const shouldForceMissingStaffAuth =
+    reasonCode === "active" &&
+    (staffCookiePresent === false || shouldKeepMissingStaffAuth);
   const shouldRecheckStaffSession =
     reasonCode === "active" &&
+    !shouldForceMissingStaffAuth &&
     currentState?.staffSessionStatus !== "authenticated";
 
   const nextState = createBaseState({
@@ -367,16 +398,21 @@ const createUiStateFromLookupSnapshot = (snapshot, currentState) => {
     errorMessage: "",
     submitStatus: "idle",
     submitError: "",
-    staffSessionStatus: shouldRecheckStaffSession
-      ? "idle"
-      : currentState?.staffSessionStatus || "idle",
-    staffLoginStatus: shouldRecheckStaffSession
+    staffSessionStatus: shouldForceMissingStaffAuth
+      ? "missing_staff_auth"
+      : shouldRecheckStaffSession
+        ? "idle"
+        : currentState?.staffSessionStatus || "idle",
+    staffLoginStatus: shouldRecheckStaffSession || shouldForceMissingStaffAuth
       ? "idle"
       : currentState?.staffLoginStatus || "idle",
-    staffLoginError: shouldRecheckStaffSession
+    staffLoginError: shouldRecheckStaffSession || shouldForceMissingStaffAuth
       ? ""
       : currentState?.staffLoginError || "",
-    staffUser: shouldRecheckStaffSession ? null : currentState?.staffUser || null,
+    staffUser:
+      shouldRecheckStaffSession || shouldForceMissingStaffAuth
+        ? null
+        : currentState?.staffUser || null,
     debug: {
       ...(currentState?.debug || createDebugState()),
       lastGuardState:
@@ -394,6 +430,19 @@ const createUiStateFromLookupSnapshot = (snapshot, currentState) => {
     status: nextState.status,
     reasonCode,
     branchId: nextState.branchId || null
+  });
+  logBranchDeviceGuardDebug("device_registration_resolved", {
+    status: nextState.status,
+    reasonCode,
+    branchId: nextState.branchId || null,
+    staffCookiePresent
+  });
+  logBranchDeviceGuardDebug("staff_session_transition", {
+    source: "lookup_snapshot",
+    status: nextState.status,
+    reasonCode,
+    staffSessionStatus: nextState.staffSessionStatus,
+    staffCookiePresent
   });
 
   return nextState;
@@ -548,10 +597,58 @@ export function BranchDeviceProvider({ children }) {
   };
 
   const handleStaffAuthEvent = (event) => {
-    setState((current) => ({
-      ...current,
-      debug: applyDebugEvent(current.debug, event)
-    }));
+    setState((current) => {
+      const baseState = current || createInitialRealState();
+      const nextState = {
+        ...baseState,
+        debug: applyDebugEvent(baseState.debug, event)
+      };
+      const isStaffSessionRequestStart =
+        event?.operation === "staff_session" &&
+        event?.type === "staff_auth_request_start";
+      const isStaffSessionSuccess =
+        event?.operation === "staff_session" &&
+        event?.type === "staff_auth_response" &&
+        event?.status === 200;
+      const isStaffSession401 =
+        event?.operation === "staff_session" &&
+        event?.type === "staff_auth_response" &&
+        (event?.status === 401 || isMissingStaffAuthReason(event?.body?.reason));
+
+      if (isStaffSessionRequestStart) {
+        logBranchDeviceGuardDebug("auth_me_started", {
+          status: baseState.status,
+          reasonCode: baseState.reasonCode,
+          staffSessionStatus: baseState.staffSessionStatus
+        });
+      }
+
+      if (isStaffSessionSuccess) {
+        logBranchDeviceGuardDebug("auth_me_200", {
+          status: event?.status ?? 200,
+          reasonCode: trimText(event?.body?.reason) || null,
+          hasUser: Boolean(event?.body?.hasUser)
+        });
+      }
+
+      if (isStaffSession401) {
+        nextState.staffSessionStatus = "missing_staff_auth";
+        nextState.staffUser = null;
+        logBranchDeviceGuardDebug("auth_me_401", {
+          status: event?.status ?? 401,
+          reasonCode: trimText(event?.body?.reason) || "missing_staff_auth",
+          hasUser: Boolean(event?.body?.hasUser)
+        });
+        logBranchDeviceGuardDebug("staff_session_transition", {
+          source: "staff_auth_response",
+          status: event?.status ?? null,
+          reasonCode: trimText(event?.body?.reason) || "missing_staff_auth",
+          staffSessionStatus: "missing_staff_auth"
+        });
+      }
+
+      return nextState;
+    });
   };
 
   useEffect(() => {
@@ -620,6 +717,12 @@ export function BranchDeviceProvider({ children }) {
       ...(current || createInitialRealState()),
       staffSessionStatus: "checking"
     }));
+    logBranchDeviceGuardDebug("staff_session_transition", {
+      source: "startup_effect_started",
+      status: state.status,
+      reasonCode: state.reasonCode,
+      staffSessionStatus: "checking"
+    });
 
     const run = async () => {
       try {
@@ -640,20 +743,33 @@ export function BranchDeviceProvider({ children }) {
               ? payload.user
               : current?.staffUser || null
         }));
+        logBranchDeviceGuardDebug("staff_session_transition", {
+          source: "startup_effect_success",
+          status: state.status,
+          reasonCode: state.reasonCode,
+          staffSessionStatus: "authenticated"
+        });
       } catch (error) {
         if (!isActive) {
           return;
         }
 
-        const reasonCode = trimText(error?.reason || error?.payload?.reason);
+        const nextStaffSessionStatus = getStaffSessionStatusFromError(error);
 
         setState((current) => ({
           ...(current || createInitialRealState()),
-          staffSessionStatus:
-            reasonCode === "missing_staff_auth" ? "missing_staff_auth" : "error",
+          staffSessionStatus: nextStaffSessionStatus,
           staffUser:
-            reasonCode === "missing_staff_auth" ? null : current?.staffUser || null
+            nextStaffSessionStatus === "missing_staff_auth"
+              ? null
+              : current?.staffUser || null
         }));
+        logBranchDeviceGuardDebug("staff_session_transition", {
+          source: "startup_effect_error",
+          status: state.status,
+          reasonCode: trimText(error?.reason || error?.payload?.reason) || null,
+          staffSessionStatus: nextStaffSessionStatus
+        });
       }
     };
 
@@ -697,6 +813,12 @@ export function BranchDeviceProvider({ children }) {
       ...(current || createInitialRealState()),
       staffSessionStatus: "checking"
     }));
+    logBranchDeviceGuardDebug("staff_session_transition", {
+      source: "manual_refresh_started",
+      status: state.status,
+      reasonCode: state.reasonCode,
+      staffSessionStatus: "checking"
+    });
 
     try {
       const payload = await getMyStaffSession({
@@ -712,20 +834,55 @@ export function BranchDeviceProvider({ children }) {
             ? payload.user
             : current?.staffUser || null
       }));
+      logBranchDeviceGuardDebug("staff_session_transition", {
+        source: "manual_refresh_success",
+        status: state.status,
+        reasonCode: state.reasonCode,
+        staffSessionStatus: "authenticated"
+      });
 
       return payload;
     } catch (error) {
-      const reasonCode = trimText(error?.reason || error?.payload?.reason);
+      const nextStaffSessionStatus = getStaffSessionStatusFromError(error);
 
       setState((current) => ({
         ...(current || createInitialRealState()),
-        staffSessionStatus:
-          reasonCode === "missing_staff_auth" ? "missing_staff_auth" : "error",
+        staffSessionStatus: nextStaffSessionStatus,
         staffUser:
-          reasonCode === "missing_staff_auth" ? null : current?.staffUser || null
+          nextStaffSessionStatus === "missing_staff_auth"
+            ? null
+            : current?.staffUser || null
       }));
+      logBranchDeviceGuardDebug("staff_session_transition", {
+        source: "manual_refresh_error",
+        status: state.status,
+        reasonCode: trimText(error?.reason || error?.payload?.reason) || null,
+        staffSessionStatus: nextStaffSessionStatus
+      });
       throw error;
     }
+  };
+
+  const forceStaffLoginRecovery = ({
+    source = "manual_safety_fallback",
+    reason = "missing_staff_auth"
+  } = {}) => {
+    setState((current) => ({
+      ...(current || createInitialRealState()),
+      staffSessionStatus: "missing_staff_auth",
+      staffLoginStatus:
+        current?.staffLoginStatus === "logging_in"
+          ? "idle"
+          : current?.staffLoginStatus || "idle",
+      staffUser: null
+    }));
+    logBranchDeviceGuardDebug("forced_transition_to_login", {
+      source,
+      status: state.status,
+      reasonCode: state.reasonCode,
+      staffSessionStatus: state.staffSessionStatus,
+      forceReason: reason
+    });
   };
 
   const registerDevice = async ({
@@ -874,6 +1031,7 @@ export function BranchDeviceProvider({ children }) {
         ...state,
         refreshRegistration,
         refreshStaffSession,
+        forceStaffLoginRecovery,
         registerDevice,
         loginStaff
       }}
