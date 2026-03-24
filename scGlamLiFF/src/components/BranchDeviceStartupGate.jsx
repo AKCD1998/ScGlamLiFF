@@ -483,6 +483,7 @@ export default function BranchDeviceStartupGate({ children }) {
     forceStaffLoginRecovery,
     reasonCode,
     refreshRegistration,
+    staffLoginStatus,
     staffSessionStatus,
     status
   } = useBranchDevice();
@@ -509,9 +510,10 @@ export default function BranchDeviceStartupGate({ children }) {
       gateView,
       status,
       reasonCode,
-      staffSessionStatus
+      staffSessionStatus,
+      staffLoginStatus
     });
-  }, [gateView, reasonCode, staffSessionStatus, status]);
+  }, [gateView, reasonCode, staffLoginStatus, staffSessionStatus, status]);
 
   useEffect(() => {
     if (!(status === "active" && staffSessionStatus === "checking" && knownMissingStaffSession)) {

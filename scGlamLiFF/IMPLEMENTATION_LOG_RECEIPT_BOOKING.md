@@ -855,3 +855,34 @@
 ### Rollback notes
 - If LIFF UI is wrong but backend is healthy, roll back frontend only
 - If booking options or final submit fail because of promo backend logic, roll back backend and keep receipt upload flow unchanged
+
+## Update 2026-03-24T13:20:00+07:00
+
+### Scope
+- Extend LIFF startup and staff-auth debug logs so same-origin cookie verification can be confirmed quickly after moving the frontend to `/liff/`.
+
+### What changed
+- Kept the existing `[LIFFGuardFrontend]` log style and added explicit staff login checkpoints:
+  - `staff_login_started`
+  - `staff_login_200`
+  - `staff_login_401`
+- Added explicit post-login confirmation transitions:
+  - `staff_login_confirmed`
+  - `staff_login_confirm_failed`
+  - `staff_login_failed`
+- Extended `startup_gate_view` logging with `staffLoginStatus` so the UI state can be matched against `/api/auth/me` outcomes without opening React DevTools.
+
+### Operational meaning
+- Expected same-origin success path:
+  - `auth_session_bootstrap_started`
+  - `device_registration_resolved`
+  - `auth_me_started`
+  - `auth_me_200`
+  - `staff_session_transition { source: "startup_effect_success", staffSessionStatus: "authenticated" }`
+  - `startup_gate_view { gateView: "ready" }`
+- Expected login recovery path:
+  - `staff_login_started`
+  - `staff_login_200`
+  - `auth_me_started`
+  - `auth_me_200`
+  - `staff_session_transition { source: "staff_login_confirmed", staffSessionStatus: "authenticated" }`

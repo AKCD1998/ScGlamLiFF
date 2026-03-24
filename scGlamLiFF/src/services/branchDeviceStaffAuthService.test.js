@@ -47,6 +47,7 @@ describe("branchDeviceStaffAuthService", () => {
     const [url, options] = fetchMock.mock.calls[0];
     const requestUrl = parseRequestUrl(url);
 
+    expect(url).toBe("/api/auth/me");
     expect(requestUrl.pathname).toBe("/api/auth/me");
     expect(options.method).toBe("GET");
     expect(options.credentials).toBe("include");
@@ -79,6 +80,7 @@ describe("branchDeviceStaffAuthService", () => {
     const [url, options] = fetchMock.mock.calls[0];
     const requestUrl = parseRequestUrl(url);
 
+    expect(url).toBe("/api/auth/login");
     expect(requestUrl.pathname).toBe("/api/auth/login");
     expect(options.method).toBe("POST");
     expect(options.credentials).toBe("include");

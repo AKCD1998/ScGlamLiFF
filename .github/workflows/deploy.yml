@@ -34,6 +34,7 @@ jobs:
           VITE_BUILD_TIME_UTC: ${{ github.event.head_commit.timestamp }}
           VITE_BUILD_VERSION: gh-${{ github.run_number }}-${{ github.sha }}
           VITE_LIFF_ID: "2008955421-uwZ1btvE"
+          VITE_PUBLIC_BASE_PATH: /ScGlamLiFF/
           VITE_USE_MOCK: "false"
       - uses: actions/upload-pages-artifact@v3
         with:

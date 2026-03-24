@@ -52,6 +52,9 @@ Meaning:
 - normal API calls can still target the configured main API base
 - OCR calls are forced to the local backend SSOT repo on `5050`
 
+Production note:
+- backend-hosted `/liff/` builds should leave `VITE_API_BASE_URL` and `VITE_OCR_API_BASE_URL` blank so requests stay same-origin under `/api/...`
+
 ### Relative proxy mode
 If you remove `VITE_OCR_API_BASE_URL`, Vite can still proxy relative `/api` requests to `http://localhost:5050` through `vite.config.js`.
 

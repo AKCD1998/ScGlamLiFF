@@ -1,5 +1,13 @@
 const toBoolean = (value) => value === "true";
 const trim = (value) => (typeof value === "string" ? value.trim() : "");
+const resolveConfiguredBaseUrl = (value) => {
+  const normalizedValue = trim(value).replace(/\/+$/, "");
+
+  // Empty means "same-origin". The API helpers will then keep `/api/...`
+  // relative to the current host, which is what the backend-hosted `/liff/`
+  // deployment needs.
+  return normalizedValue === "/" ? "" : normalizedValue;
+};
 const toPositiveInteger = (value, fallbackValue) => {
   const parsedValue = Number.parseInt(String(value || ""), 10);
 
@@ -14,8 +22,8 @@ const env = {
   isProd: import.meta.env.PROD,
   isDev: import.meta.env.DEV,
   useMock: toBoolean(import.meta.env.VITE_USE_MOCK),
-  apiBaseUrl: trim(import.meta.env.VITE_API_BASE_URL).replace(/\/+$/, ""),
-  ocrApiBaseUrl: trim(import.meta.env.VITE_OCR_API_BASE_URL).replace(/\/+$/, ""),
+  apiBaseUrl: resolveConfiguredBaseUrl(import.meta.env.VITE_API_BASE_URL),
+  ocrApiBaseUrl: resolveConfiguredBaseUrl(import.meta.env.VITE_OCR_API_BASE_URL),
   ocrRequestTimeoutMs: toPositiveInteger(
     import.meta.env.VITE_OCR_REQUEST_TIMEOUT_MS,
     15000

@@ -614,6 +614,41 @@ export function BranchDeviceProvider({ children }) {
         event?.operation === "staff_session" &&
         event?.type === "staff_auth_response" &&
         (event?.status === 401 || isMissingStaffAuthReason(event?.body?.reason));
+      const isStaffLoginRequestStart =
+        event?.operation === "staff_login" &&
+        event?.type === "staff_auth_request_start";
+      const isStaffLoginSuccess =
+        event?.operation === "staff_login" &&
+        event?.type === "staff_auth_response" &&
+        event?.status === 200;
+      const isStaffLogin401 =
+        event?.operation === "staff_login" &&
+        event?.type === "staff_auth_response" &&
+        (event?.status === 401 ||
+          trimText(event?.body?.reason) === "login_failed");
+
+      if (isStaffLoginRequestStart) {
+        logBranchDeviceGuardDebug("staff_login_started", {
+          status: baseState.status,
+          reasonCode: baseState.reasonCode,
+          staffSessionStatus: baseState.staffSessionStatus,
+          staffLoginStatus: baseState.staffLoginStatus
+        });
+      }
+
+      if (isStaffLoginSuccess) {
+        logBranchDeviceGuardDebug("staff_login_200", {
+          status: event?.status ?? 200,
+          reasonCode: trimText(event?.body?.reason) || null
+        });
+      }
+
+      if (isStaffLogin401) {
+        logBranchDeviceGuardDebug("staff_login_401", {
+          status: event?.status ?? 401,
+          reasonCode: trimText(event?.body?.reason) || "login_failed"
+        });
+      }
 
       if (isStaffSessionRequestStart) {
         logBranchDeviceGuardDebug("auth_me_started", {
@@ -956,11 +991,11 @@ export function BranchDeviceProvider({ children }) {
   };
 
   const loginStaff = async ({ username, password }) => {
-    setState((current) => ({
-      ...(current || createInitialRealState()),
-      staffLoginStatus: "logging_in",
-      staffLoginError: "",
-      submitError: ""
+      setState((current) => ({
+        ...(current || createInitialRealState()),
+        staffLoginStatus: "logging_in",
+        staffLoginError: "",
+        submitError: ""
     }));
 
     try {
@@ -991,6 +1026,14 @@ export function BranchDeviceProvider({ children }) {
           }),
           staffUser: null
         }));
+        logBranchDeviceGuardDebug("staff_session_transition", {
+          source: "staff_login_confirm_failed",
+          status: state.status,
+          reasonCode: trimText(error?.reason || error?.payload?.reason) || null,
+          staffSessionStatus: "missing_staff_auth",
+          staffLoginStatus: "login_failed",
+          confirmedSession: false
+        });
         throw error;
       }
 
@@ -1005,6 +1048,14 @@ export function BranchDeviceProvider({ children }) {
             ? sessionPayload.user
             : current?.staffUser || null
       }));
+      logBranchDeviceGuardDebug("staff_session_transition", {
+        source: "staff_login_confirmed",
+        status: state.status,
+        reasonCode: state.reasonCode,
+        staffSessionStatus: "authenticated",
+        staffLoginStatus: "login_success",
+        confirmedSession: true
+      });
 
       return sessionPayload;
     } catch (error) {
@@ -1021,6 +1072,19 @@ export function BranchDeviceProvider({ children }) {
         staffUser:
           current?.staffSessionStatus === "authenticated" ? current?.staffUser : null
       }));
+      if (!error?.__staffSessionConfirmationFailed) {
+        logBranchDeviceGuardDebug("staff_session_transition", {
+          source: "staff_login_failed",
+          status: state.status,
+          reasonCode: trimText(error?.reason || error?.payload?.reason) || null,
+          staffSessionStatus:
+            state.staffSessionStatus === "authenticated"
+              ? "authenticated"
+              : "missing_staff_auth",
+          staffLoginStatus: "login_failed",
+          confirmedSession: false
+        });
+      }
       throw error;
     }
   };
