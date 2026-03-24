@@ -886,3 +886,21 @@
   - `auth_me_started`
   - `auth_me_200`
   - `staff_session_transition { source: "staff_login_confirmed", staffSessionStatus: "authenticated" }`
+
+## Update 2026-03-24T15:55:00+07:00
+
+### Scope
+- Harden the LIFF frontend bootstrap after moving the entrypoint to backend-origin hosting under `/liff/`.
+
+### What changed
+- Replaced the previous single-entry static-import bootstrap with a tiny loader entry in `src/main.jsx`.
+- The loader now:
+  - marks `window.__SCGLAM_BOOT__.jsStarted = true` immediately
+  - updates the boot overlay text before loading the heavier app graph
+  - dynamically imports `src/renderApp.jsx`
+  - surfaces dynamic import failures as `Bootstrap error: ...`
+- Moved the React mount logic into `src/renderApp.jsx`.
+
+### Operational meaning
+- The old `App failed to start. Please refresh or check network.` screen could appear even when the browser was still parsing/loading the main bundle in LINE LIFF WebView.
+- The new bootstrap reduces that false-negative and should show a more specific boot message if the app graph fails before render.
