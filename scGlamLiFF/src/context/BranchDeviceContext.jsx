@@ -347,6 +347,9 @@ const createUiStateFromLookupSnapshot = (snapshot, currentState) => {
     trimText(snapshot?.reason) ||
     (!snapshot?.registered ? "not_registered" : snapshot?.active ? "active" : "inactive");
   const branchId = trimText(snapshot?.branchId || snapshot?.branch_id);
+  const shouldRecheckStaffSession =
+    reasonCode === "active" &&
+    currentState?.staffSessionStatus !== "authenticated";
 
   const nextState = createBaseState({
     ...currentState,
@@ -364,6 +367,16 @@ const createUiStateFromLookupSnapshot = (snapshot, currentState) => {
     errorMessage: "",
     submitStatus: "idle",
     submitError: "",
+    staffSessionStatus: shouldRecheckStaffSession
+      ? "idle"
+      : currentState?.staffSessionStatus || "idle",
+    staffLoginStatus: shouldRecheckStaffSession
+      ? "idle"
+      : currentState?.staffLoginStatus || "idle",
+    staffLoginError: shouldRecheckStaffSession
+      ? ""
+      : currentState?.staffLoginError || "",
+    staffUser: shouldRecheckStaffSession ? null : currentState?.staffUser || null,
     debug: {
       ...(currentState?.debug || createDebugState()),
       lastGuardState:
@@ -587,7 +600,11 @@ export function BranchDeviceProvider({ children }) {
   useEffect(() => {
     let isActive = true;
 
-    if (mode !== "real" || state.status !== "not_registered") {
+    const shouldCheckStaffSession =
+      mode === "real" &&
+      (state.status === "not_registered" || state.status === "active");
+
+    if (!shouldCheckStaffSession) {
       return () => {
         isActive = false;
       };

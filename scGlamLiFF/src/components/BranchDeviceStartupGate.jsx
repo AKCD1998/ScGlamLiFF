@@ -327,12 +327,177 @@ function BranchDeviceInactivePanel() {
   );
 }
 
+function BranchDeviceStaffSessionRecoveryForm() {
+  const {
+    loginStaff,
+    refreshStaffSession,
+    staffLoginError,
+    staffLoginStatus,
+    staffSessionStatus,
+    staffUser
+  } = useBranchDevice();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  const isStaffAuthenticated = staffSessionStatus === "authenticated";
+  const isCheckingSession = staffSessionStatus === "checking";
+  const isLoggingIn = staffLoginStatus === "logging_in";
+  const loginDisabled =
+    isLoggingIn ||
+    isCheckingSession ||
+    isStaffAuthenticated ||
+    !username.trim() ||
+    !password;
+  const refreshDisabled = isLoggingIn || isCheckingSession;
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    try {
+      await loginStaff({
+        username,
+        password
+      });
+      setPassword("");
+    } catch {
+      // Error state is surfaced through context for the recovery panel.
+    }
+  };
+
+  const handleRefreshSession = async () => {
+    try {
+      await refreshStaffSession();
+    } catch {
+      // Error state is surfaced through context for the recovery panel.
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          padding: 16,
+          borderRadius: 16,
+          background: "rgba(122, 81, 54, 0.08)"
+        }}
+      >
+        <strong>เข้าสู่ระบบพนักงานใน LIFF นี้อีกครั้ง</strong>
+
+        {staffUser?.display_name || staffUser?.username ? (
+          <p style={{ margin: 0, color: "#356f37" }}>
+            พนักงาน: {staffUser.display_name || staffUser.username}
+          </p>
+        ) : null}
+
+        <label htmlFor="active-device-staff-username">ชื่อผู้ใช้พนักงาน</label>
+        <input
+          id="active-device-staff-username"
+          type="text"
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
+          placeholder="เช่น staff003"
+          autoComplete="username"
+        />
+
+        <label htmlFor="active-device-staff-password">รหัสผ่านพนักงาน</label>
+        <input
+          id="active-device-staff-password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="รหัสผ่านพนักงาน"
+          autoComplete="current-password"
+        />
+
+        <div style={{ display: "grid", gap: 8 }}>
+          <button type="submit" disabled={loginDisabled}>
+            {isLoggingIn ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบพนักงาน"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void handleRefreshSession()}
+            disabled={refreshDisabled}
+          >
+            {isCheckingSession ? "กำลังตรวจสอบ..." : "ตรวจสอบ session อีกครั้ง"}
+          </button>
+        </div>
+
+        {staffSessionStatus === "missing_staff_auth" ? (
+          <p style={{ margin: 0, color: "#9f2323" }}>
+            staff cookie ของ LIFF session นี้หายหรือหมดอายุ กรุณาเข้าสู่ระบบพนักงานใหม่ก่อนใช้งาน
+          </p>
+        ) : null}
+
+        {staffSessionStatus === "error" ? (
+          <p style={{ margin: 0, color: "#9f2323" }}>
+            ตรวจสอบ session พนักงานไม่สำเร็จ ลองตรวจสอบอีกครั้งหรือเข้าสู่ระบบใหม่
+          </p>
+        ) : null}
+
+        {staffLoginStatus === "logging_in" ? (
+          <p style={{ margin: 0, color: "rgba(57, 35, 24, 0.8)" }}>
+            กำลังเข้าสู่ระบบพนักงาน...
+          </p>
+        ) : null}
+
+        {staffLoginStatus === "login_failed" && staffLoginError ? (
+          <p style={{ margin: 0, color: "#9f2323" }}>{staffLoginError}</p>
+        ) : null}
+
+        {staffLoginStatus === "login_success" && isStaffAuthenticated ? (
+          <p style={{ margin: 0, color: "#356f37" }}>
+            เข้าสู่ระบบพนักงานสำเร็จ กำลังกลับเข้าสู่หน้าหลัก
+          </p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
 export default function BranchDeviceStartupGate({ children }) {
-  const { debug, errorMessage, reasonCode, refreshRegistration, status } =
-    useBranchDevice();
+  const {
+    debug,
+    errorMessage,
+    reasonCode,
+    refreshRegistration,
+    staffSessionStatus,
+    status
+  } = useBranchDevice();
+
+  if (status === "active" && staffSessionStatus === "authenticated") {
+    return children;
+  }
+
+  if (
+    status === "active" &&
+    (staffSessionStatus === "idle" || staffSessionStatus === "checking")
+  ) {
+    return (
+      <BranchDevicePanel
+        title="กำลังตรวจสอบ session พนักงาน"
+        message="อุปกรณ์นี้ลงทะเบียนแล้ว กำลังยืนยัน session พนักงานก่อนเข้าใช้งาน"
+        debug={debug}
+        status={status}
+        reasonCode={reasonCode}
+      />
+    );
+  }
 
   if (status === "active") {
-    return children;
+    return (
+      <BranchDevicePanel
+        title="ต้องเข้าสู่ระบบพนักงาน"
+        message="อุปกรณ์นี้ลงทะเบียนแล้ว แต่ session พนักงานหายหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่ก่อนใช้งาน"
+        debug={debug}
+        status={status}
+        reasonCode={reasonCode}
+      >
+        <BranchDeviceStaffSessionRecoveryForm />
+      </BranchDevicePanel>
+    );
   }
 
   if (status === "loading") {

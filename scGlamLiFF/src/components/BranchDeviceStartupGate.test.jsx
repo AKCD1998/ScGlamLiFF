@@ -108,11 +108,102 @@ describe("BranchDeviceStartupGate", () => {
         status: "active"
       }
     });
+    getMyStaffSessionMock.mockResolvedValue({
+      success: true,
+      user: {
+        username: "staff003",
+        display_name: "SC 003 สาขาวัดช่องลม"
+      }
+    });
 
     renderGuard();
 
     expect(await screen.findByTestId("guard-ready")).toBeTruthy();
     expect(getMyBranchDeviceRegistrationMock).toHaveBeenCalledTimes(1);
+    expect(getMyStaffSessionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires staff re-login before entering the app when an active device has no staff cookie", async () => {
+    getMyBranchDeviceRegistrationMock.mockResolvedValue({
+      ok: true,
+      registered: true,
+      active: true,
+      branch_id: "branch-003",
+      registration: {
+        id: "registration-uuid",
+        branch_id: "branch-003",
+        status: "active"
+      }
+    });
+
+    renderGuard();
+
+    expect(await screen.findByText("ต้องเข้าสู่ระบบพนักงาน")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "อุปกรณ์นี้ลงทะเบียนแล้ว แต่ session พนักงานหายหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่ก่อนใช้งาน"
+      )
+    ).toBeTruthy();
+    expect(screen.queryByTestId("guard-ready")).toBeNull();
+    expect(getMyStaffSessionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers an active device by logging staff back in before unlocking the app", async () => {
+    getMyBranchDeviceRegistrationMock.mockResolvedValue({
+      ok: true,
+      registered: true,
+      active: true,
+      branch_id: "branch-003",
+      registration: {
+        id: "registration-uuid",
+        branch_id: "branch-003",
+        status: "active"
+      }
+    });
+    loginStaffSessionMock.mockResolvedValue({
+      success: true
+    });
+    getMyStaffSessionMock
+      .mockRejectedValueOnce(
+        new BranchDeviceStaffAuthApiErrorClass("ยังไม่ได้เข้าสู่ระบบพนักงาน", {
+          status: 401,
+          payload: {
+            reason: "missing_staff_auth"
+          }
+        })
+      )
+      .mockResolvedValueOnce({
+        success: true,
+        user: {
+          username: "staff003",
+          display_name: "SC 003 สาขาวัดช่องลม"
+        }
+      });
+
+    renderGuard();
+
+    expect(await screen.findByText("ต้องเข้าสู่ระบบพนักงาน")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("ชื่อผู้ใช้พนักงาน"), {
+      target: { value: "staff003" }
+    });
+    fireEvent.change(screen.getByLabelText("รหัสผ่านพนักงาน"), {
+      target: { value: "password-003" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "เข้าสู่ระบบพนักงาน" }));
+
+    await waitFor(() =>
+      expect(loginStaffSessionMock).toHaveBeenCalledWith(
+        {
+          username: "staff003",
+          password: "password-003"
+        },
+        {
+          onEvent: expect.any(Function)
+        }
+      )
+    );
+    expect(await screen.findByTestId("guard-ready")).toBeTruthy();
   });
 
   it("shows the registration-required state for an unregistered LIFF device", async () => {
@@ -363,7 +454,7 @@ describe("BranchDeviceStartupGate", () => {
     expect(await screen.findByTestId("guard-ready")).toBeTruthy();
   });
 
-  it("allows registration submit without cookie when explicit staff credentials are entered", async () => {
+  it("still requires a real staff login after registration that only used explicit fallback credentials", async () => {
     getMyBranchDeviceRegistrationMock
       .mockResolvedValueOnce({
         ok: true,
@@ -427,7 +518,8 @@ describe("BranchDeviceStartupGate", () => {
         })
       )
     );
-    expect(await screen.findByTestId("guard-ready")).toBeTruthy();
+    expect(await screen.findByText("ต้องเข้าสู่ระบบพนักงาน")).toBeTruthy();
+    expect(screen.queryByTestId("guard-ready")).toBeNull();
   });
 
   it("surfaces login errors clearly inside the registration panel", async () => {
