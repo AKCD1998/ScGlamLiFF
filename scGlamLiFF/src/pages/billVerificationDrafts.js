@@ -1,4 +1,5 @@
 import { trimText } from "../services/appointmentContract";
+import formatBangkokDateTime from "../utils/formatBangkokDateTime";
 import {
   getAppointmentDraftDisplayStatus,
   isAppointmentDraftReadyToSubmit
@@ -13,17 +14,13 @@ export const formatDraftBookingDate = (scheduledAt) => {
     return EMPTY_BOOKING_DATE_PLACEHOLDER;
   }
 
-  const parsedDate = new Date(scheduledAt);
+  const formattedDate = formatBangkokDateTime(scheduledAt);
 
-  if (Number.isNaN(parsedDate.getTime())) {
+  if (!formattedDate) {
     return EMPTY_BOOKING_DATE_PLACEHOLDER;
   }
 
-  return new Intl.DateTimeFormat("th-TH", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Bangkok"
-  }).format(parsedDate);
+  return formattedDate;
 };
 
 export const getDraftStatusPresentation = (draft) => {

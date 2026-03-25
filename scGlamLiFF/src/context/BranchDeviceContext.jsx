@@ -11,6 +11,7 @@ import {
   getMyStaffSession,
   loginStaffSession
 } from "../services/branchDeviceStaffAuthService";
+import { DEFAULT_BOOKING_BRANCH_ID } from "../services/branchCatalog";
 import {
   getBranchDeviceGuardRuntimeConfig,
   logBranchDeviceGuardDebug,
@@ -123,9 +124,24 @@ const createBypassedState = () =>
     status: "active",
     reasonCode: "mock_mode_bypass",
     guardEnabled: false,
+    branchId: DEFAULT_BOOKING_BRANCH_ID,
+    staffSessionStatus: "authenticated",
+    staffUser: {
+      username: "mock-staff-001",
+      display_name: "Mock Staff"
+    },
     debug: createDebugState({
       lastGuardState: "active",
-      lastReasonCode: "mock_mode_bypass"
+      lastReasonCode: "mock_mode_bypass",
+      lastStaffSessionStatus: 200,
+      lastStaffSessionResponse: {
+        success: true,
+        reason: "mock_mode_bypass",
+        user: {
+          username: "mock-staff-001",
+          display_name: "Mock Staff"
+        }
+      }
     })
   });
 

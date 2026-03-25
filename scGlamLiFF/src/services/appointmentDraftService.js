@@ -1,4 +1,13 @@
 import { apiUrl } from "../utils/apiBase";
+import { useMock } from "../config/env";
+import {
+  MockApiError,
+  createMockAppointmentDraft,
+  getMockAppointmentDraft,
+  listMockAppointmentDrafts,
+  submitMockAppointmentDraft,
+  updateMockAppointmentDraft
+} from "./billVerificationMockService";
 
 const JSON_HEADERS = {
   "Content-Type": "application/json"
@@ -41,6 +50,28 @@ const buildApiError = (response, payload) => {
   });
 };
 
+const buildMockApiError = (error) =>
+  new AppointmentDraftApiError(error?.message || "Mock request failed", {
+    status: error?.status ?? 0,
+    payload: error?.payload ?? null
+  });
+
+const runMockRequest = async (callback) => {
+  try {
+    return await callback();
+  } catch (error) {
+    if (error instanceof AppointmentDraftApiError) {
+      throw error;
+    }
+
+    if (error instanceof MockApiError) {
+      throw buildMockApiError(error);
+    }
+
+    throw buildMockApiError(error);
+  }
+};
+
 const requestJson = async (path, options = {}) => {
   const { headers, ...restOptions } = options;
   const response = await fetch(apiUrl(path), {
@@ -61,12 +92,18 @@ const requestJson = async (path, options = {}) => {
 };
 
 export const createAppointmentDraft = async (payload) =>
-  requestJson("/api/appointment-drafts", {
-    method: "POST",
-    body: JSON.stringify(payload || {})
-  });
+  useMock
+    ? runMockRequest(() => createMockAppointmentDraft(payload))
+    : requestJson("/api/appointment-drafts", {
+        method: "POST",
+        body: JSON.stringify(payload || {})
+      });
 
 export const listAppointmentDrafts = async () => {
+  if (useMock) {
+    return runMockRequest(() => listMockAppointmentDrafts());
+  }
+
   const payload = await requestJson("/api/appointment-drafts", {
     method: "GET"
   });
@@ -83,18 +120,24 @@ export const listAppointmentDrafts = async () => {
 };
 
 export const getAppointmentDraft = async (id) =>
-  requestJson(`/api/appointment-drafts/${encodeURIComponent(id)}`, {
-    method: "GET"
-  });
+  useMock
+    ? runMockRequest(() => getMockAppointmentDraft(id))
+    : requestJson(`/api/appointment-drafts/${encodeURIComponent(id)}`, {
+        method: "GET"
+      });
 
 export const updateAppointmentDraft = async (id, payload) =>
-  requestJson(`/api/appointment-drafts/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload || {})
-  });
+  useMock
+    ? runMockRequest(() => updateMockAppointmentDraft(id, payload))
+    : requestJson(`/api/appointment-drafts/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload || {})
+      });
 
 export const submitAppointmentDraft = async (id) =>
-  requestJson(`/api/appointment-drafts/${encodeURIComponent(id)}/submit`, {
-    method: "POST",
-    body: JSON.stringify({})
-  });
+  useMock
+    ? runMockRequest(() => submitMockAppointmentDraft(id))
+    : requestJson(`/api/appointment-drafts/${encodeURIComponent(id)}/submit`, {
+        method: "POST",
+        body: JSON.stringify({})
+      });

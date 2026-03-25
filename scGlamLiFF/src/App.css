@@ -178,6 +178,24 @@ body.modal-open {
   text-transform: uppercase;
 }
 
+.branch-device-panel {
+  width: min(560px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(122, 81, 54, 0.18);
+  background: #fffaf3;
+  box-shadow: 0 18px 36px rgba(48, 33, 23, 0.08);
+}
+
+.branch-device-panel__title {
+  margin-top: 0;
+}
+
+.branch-device-panel__message {
+  margin-bottom: 0;
+}
+
 .mock-mode-banner {
   position: fixed;
   top: 14px;
@@ -203,6 +221,11 @@ body.modal-open {
 }
 
 @media (max-width: 640px) {
+  .branch-device-panel--staff-session-checking {
+    font-size: 50%;
+    text-align: center;
+  }
+
   .mock-mode-banner {
     top: 10px;
     right: 10px;

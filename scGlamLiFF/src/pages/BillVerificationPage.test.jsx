@@ -48,7 +48,7 @@ describe("BillVerificationPage", () => {
     vi.clearAllMocks();
   });
 
-  it("renders backend draft records through the existing card UI", async () => {
+  it("renders backend draft records through the collapsed summary rows first", async () => {
     listAppointmentDraftsMock.mockResolvedValue([
       {
         id: "draft-uuid",
@@ -64,10 +64,32 @@ describe("BillVerificationPage", () => {
     render(<BillVerificationPage />);
 
     expect(await screen.findByText("ลูกค้าทดสอบ")).toBeTruthy();
-    expect(screen.getByText("0812345678")).toBeTruthy();
-    expect(screen.getByText("Smooth 3x 3900")).toBeTruthy();
     expect(screen.getByText("ยังไม่ได้นัดวัน")).toBeTruthy();
+    expect(screen.queryByText("0812345678")).toBeNull();
+    expect(screen.getByRole("button", { name: "ขยาย" })).toBeTruthy();
+  });
+
+  it("reveals the original card details when expanding a summary row", async () => {
+    listAppointmentDraftsMock.mockResolvedValue([
+      {
+        id: "draft-uuid",
+        status: "draft",
+        customer_full_name: "ลูกค้าทดสอบ",
+        phone: "0812345678",
+        treatment_item_text: "Smooth 3x 3900",
+        scheduled_at: null,
+        updated_at: "2026-03-17T10:00:00.000Z"
+      }
+    ]);
+
+    render(<BillVerificationPage />);
+
+    await screen.findByText("ลูกค้าทดสอบ");
+    fireEvent.click(screen.getByRole("button", { name: "ขยาย" }));
+
+    expect(await screen.findByText("0812345678")).toBeTruthy();
     expect(screen.getByText("เตรียมข้อมูล")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "หด" })).toBeTruthy();
   });
 
   it("reloads persisted draft rows from the real backend list endpoint on remount", async () => {
@@ -123,6 +145,7 @@ describe("BillVerificationPage", () => {
     render(<BillVerificationPage />);
 
     await screen.findByText("ลูกค้าทดสอบ");
+    fireEvent.click(screen.getByRole("button", { name: "ขยาย" }));
     fireEvent.click(screen.getByRole("button", { name: "แก้ไขข้อมูล" }));
 
     await waitFor(() =>

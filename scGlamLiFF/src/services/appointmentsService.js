@@ -1,6 +1,14 @@
 import { apiUrl } from "../utils/apiBase";
+import { useMock } from "../config/env";
 import { normalizeCanonicalBranch } from "./branchContract";
 import { LIFF_RECEIPT_PROMO_BOOKING_CHANNEL } from "../config/liffReceiptPromoCampaign";
+import {
+  MockApiError,
+  createMockAppointment,
+  getMockAppointmentsQueue,
+  getMockBookingOptions,
+  getMockCalendarDays
+} from "./billVerificationMockService";
 
 const JSON_HEADERS = {
   "Content-Type": "application/json"
@@ -43,6 +51,28 @@ const buildApiError = (response, payload) => {
   });
 };
 
+const buildMockApiError = (error) =>
+  new AppointmentsApiError(error?.message || "Mock request failed", {
+    status: error?.status ?? 0,
+    payload: error?.payload ?? null
+  });
+
+const runMockRequest = async (callback) => {
+  try {
+    return await callback();
+  } catch (error) {
+    if (error instanceof AppointmentsApiError) {
+      throw error;
+    }
+
+    if (error instanceof MockApiError) {
+      throw buildMockApiError(error);
+    }
+
+    throw buildMockApiError(error);
+  }
+};
+
 const buildQueryString = (params) => {
   const query = new URLSearchParams();
 
@@ -81,6 +111,10 @@ const requestJson = async (path, options = {}) => {
 export const getBookingOptions = async ({
   channel = LIFF_RECEIPT_PROMO_BOOKING_CHANNEL
 } = {}) => {
+  if (useMock) {
+    return runMockRequest(() => getMockBookingOptions({ channel }));
+  }
+
   const payload = await requestJson(
     `/api/appointments/booking-options${buildQueryString({
       channel
@@ -97,6 +131,16 @@ export const getBookingOptions = async ({
 };
 
 export const getCalendarDays = async ({ from, to, branchValue } = {}) => {
+  if (useMock) {
+    return runMockRequest(() =>
+      getMockCalendarDays({
+        from,
+        to,
+        branchValue
+      })
+    );
+  }
+
   const normalizedBranch = normalizeCanonicalBranch(branchValue);
   const payload = await requestJson(
     `/api/appointments/calendar-days${buildQueryString({
@@ -113,6 +157,16 @@ export const getCalendarDays = async ({ from, to, branchValue } = {}) => {
 };
 
 export const getAppointmentsQueue = async ({ date, branchValue, limit } = {}) => {
+  if (useMock) {
+    return runMockRequest(() =>
+      getMockAppointmentsQueue({
+        date,
+        branchValue,
+        limit
+      })
+    );
+  }
+
   const normalizedBranch = normalizeCanonicalBranch(branchValue);
   const payload = await requestJson(
     `/api/appointments/queue${buildQueryString({
@@ -129,7 +183,9 @@ export const getAppointmentsQueue = async ({ date, branchValue, limit } = {}) =>
 };
 
 export const createAppointment = async (payload) =>
-  requestJson("/api/appointments", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+  useMock
+    ? runMockRequest(() => createMockAppointment(payload))
+    : requestJson("/api/appointments", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });

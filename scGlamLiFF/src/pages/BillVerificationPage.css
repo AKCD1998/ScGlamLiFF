@@ -127,9 +127,196 @@
   text-align: center;
 }
 
+.bill-verification-summary-header {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(260px, 1.4fr);
+  gap: 2px;
+  padding: 0;
+  border-radius: 18px 18px 0 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #6d4a30, #573825);
+  color: #fff7ed;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.bill-verification-summary-header span {
+  padding: 12px 16px;
+  background: transparent;
+}
+
+.bill-verification-record {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bill-verification-summary-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(260px, 1.4fr);
+  gap: 2px;
+  align-items: center;
+  border-radius: 0 0 18px 18px;
+  overflow: hidden;
+  box-shadow: 0 10px 22px rgba(95, 67, 43, 0.12);
+}
+
+.bill-verification-record:nth-of-type(odd) .bill-verification-summary-row {
+  background: linear-gradient(180deg, rgba(122, 81, 54, 0.78), rgb(81 44 20));
+}
+
+.bill-verification-record:nth-of-type(even) .bill-verification-summary-row {
+  background: linear-gradient(180deg, rgba(122, 81, 54, 0.78), rgb(81 44 20));
+}
+
+.bill-verification-summary-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  min-height: 62px;
+  padding: 12px 16px;
+  background: transparent;
+}
+
+.bill-verification-summary-cell__label {
+  display: none;
+  color: rgba(255, 248, 236, 0.84);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.bill-verification-summary-cell__value {
+  color: #fffaf3;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bill-verification-summary-cell--note {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.bill-verification-summary-cell--note .bill-verification-summary-cell__label {
+  display: none;
+}
+
+.bill-verification-summary-cell__toggle {
+  align-self: flex-start;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fffaf3;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  transition: opacity 0.16s ease;
+}
+
+.bill-verification-summary-cell__toggle:hover {
+  opacity: 0.82;
+}
+
+.bill-verification-summary-cell__toggle:active {
+  opacity: 0.7;
+}
+
+.bill-verification-summary-cell__toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 250, 243, 0.42);
+  border-radius: 6px;
+}
+
+.bill-verification-summary-cell--note .bill-verification-summary-cell__toggle {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  min-height: 40px;
+  padding: 10px 20px;
+  border: 1px solid rgba(122, 81, 54, 0.48);
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 250, 243, 0.96),
+    rgba(236, 220, 201, 0.94)
+  );
+  box-shadow: 0 10px 18px rgba(48, 33, 23, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52);
+  color: #6f4b33;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  text-decoration: none;
+  transition: transform 0.16s ease, box-shadow 0.16s ease,
+    background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.bill-verification-summary-cell--note .bill-verification-summary-cell__toggle:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+  border-color: rgba(122, 81, 54, 0.62);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 251, 246, 0.98),
+    rgba(232, 212, 189, 0.96)
+  );
+  box-shadow: 0 14px 24px rgba(48, 33, 23, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.bill-verification-summary-cell--note .bill-verification-summary-cell__toggle:active {
+  opacity: 1;
+  transform: translateY(0);
+  box-shadow: 0 8px 14px rgba(48, 33, 23, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.46);
+}
+
+.bill-verification-summary-cell--note
+  .bill-verification-summary-cell__toggle:focus-visible {
+  border-radius: 999px;
+  box-shadow: 0 0 0 4px rgba(255, 250, 243, 0.26),
+    0 12px 24px rgba(48, 33, 23, 0.18);
+}
+
+.bill-verification-summary-cell--note
+  .bill-verification-summary-cell__toggle[aria-expanded="true"] {
+  border-color: rgba(255, 244, 227, 0.42);
+  background: linear-gradient(180deg, rgba(116, 78, 52, 0.96), rgba(84, 52, 31, 0.96));
+  box-shadow: 0 12px 22px rgba(33, 22, 15, 0.22);
+  color: #fffaf3;
+}
+
+.bill-verification-record__details {
+  padding-top: 2px;
+}
+
+.bill-verification-record__details .bill-verification-card {
+  box-shadow: none;
+}
+
 .bill-verification-card {
   display: grid;
-  grid-template-columns: minmax(180px, 220px) 112px minmax(0, 1fr) 160px;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) 160px;
   gap: 20px;
   align-items: center;
   padding: 24px 28px;
@@ -178,40 +365,6 @@
   font-size: 14px;
 }
 
-.bill-verification-card__avatar {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  border: 2px solid rgba(126, 89, 63, 0.56);
-  border-radius: 50%;
-  background: linear-gradient(180deg, #fbf4ea, #e8d6c0);
-  flex-shrink: 0;
-}
-
-.bill-verification-card__avatar::before {
-  content: "";
-  position: absolute;
-  top: 22px;
-  left: 50%;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: rgba(126, 89, 63, 0.32);
-  transform: translateX(-50%);
-}
-
-.bill-verification-card__avatar::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 18px;
-  width: 54px;
-  height: 34px;
-  border-radius: 999px 999px 14px 14px;
-  background: rgba(126, 89, 63, 0.24);
-  transform: translateX(-50%);
-}
-
 .bill-verification-card__info-box {
   display: flex;
   flex-direction: column;
@@ -244,9 +397,10 @@
 
 .bill-verification-card__edit-box {
   display: flex;
-  flex-direction: column;
+  flex-direction: row-reverse;
   align-items: center;
   gap: 16px;
+  --bill-verification-edit-control-height: 60px;
 }
 
 .bill-verification-card__edit-box--button {
@@ -269,19 +423,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 96px;
-  height: 96px;
-  border-radius: 28px;
+  width: var(--bill-verification-edit-control-height);
+  height: var(--bill-verification-edit-control-height);
+  flex: 0 0 var(--bill-verification-edit-control-height);
+  border-radius: 18px;
   border: 2px solid rgba(126, 89, 63, 0.5);
   background: rgba(255, 249, 240, 0.95);
   color: #7a5136;
-  font-size: 60px;
+  font-size: 34px;
   line-height: 1;
 }
 
 .bill-verification-card__edit-button {
-  width: 100%;
-  padding: 14px 18px;
+  min-height: var(--bill-verification-edit-control-height);
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
   border: 2px solid rgba(126, 89, 63, 0.6);
   border-radius: 18px;
   background: rgba(255, 252, 246, 0.92);
@@ -301,6 +460,9 @@
 [data-theme="dark"] .bill-verification-panel--heading h1,
 [data-theme="dark"] .bill-verification-panel--status h2,
 [data-theme="dark"] .bill-verification-panel--status p,
+[data-theme="dark"] .bill-verification-summary-header,
+[data-theme="dark"] .bill-verification-summary-cell__value,
+[data-theme="dark"] .bill-verification-summary-cell__toggle,
 [data-theme="dark"] .bill-verification-panel__plus,
 [data-theme="dark"] .bill-verification-panel__title,
 [data-theme="dark"] .bill-verification-card__info-row,
@@ -312,24 +474,20 @@
 [data-theme="dark"] .bill-verification-card__status-box,
 [data-theme="dark"] .bill-verification-card__info-box,
 [data-theme="dark"] .bill-verification-card__edit-icon,
-[data-theme="dark"] .bill-verification-card__edit-button,
-[data-theme="dark"] .bill-verification-card__avatar {
+[data-theme="dark"] .bill-verification-card__edit-button {
   background: rgba(20, 17, 13, 0.88);
   border-color: rgba(224, 199, 122, 0.34);
 }
 
+[data-theme="dark"] .bill-verification-summary-cell__label,
 [data-theme="dark"] .bill-verification-card__status-label,
 [data-theme="dark"] .bill-verification-card__expiry,
 [data-theme="dark"] .bill-verification-card__info-value {
   color: rgba(240, 222, 188, 0.82);
 }
 
-[data-theme="dark"] .bill-verification-card__avatar::before {
-  background: rgba(224, 199, 122, 0.42);
-}
-
-[data-theme="dark"] .bill-verification-card__avatar::after {
-  background: rgba(224, 199, 122, 0.3);
+[data-theme="dark"] .bill-verification-summary-header {
+  background: linear-gradient(180deg, #352618, #24170f);
 }
 
 [data-theme="dark"] .bill-verification-panel--new-button:hover {
@@ -337,9 +495,56 @@
   background: rgba(49, 38, 28, 0.96);
 }
 
+[data-theme="dark"] .bill-verification-record:nth-of-type(odd)
+  .bill-verification-summary-row {
+  background: linear-gradient(180deg, #74411f, #5d3217);
+}
+
+[data-theme="dark"] .bill-verification-record:nth-of-type(even)
+  .bill-verification-summary-row {
+  background: linear-gradient(180deg, #613616, #4d2a11);
+}
+
+[data-theme="dark"] .bill-verification-summary-cell__toggle:hover {
+  opacity: 0.82;
+}
+
+[data-theme="dark"] .bill-verification-summary-cell--note .bill-verification-summary-cell__toggle {
+  border-color: rgba(224, 199, 122, 0.56);
+  background: linear-gradient(180deg, rgba(240, 222, 188, 0.98), rgba(215, 191, 147, 0.96));
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  color: #3a2617;
+}
+
+[data-theme="dark"] .bill-verification-summary-cell--note .bill-verification-summary-cell__toggle:hover {
+  opacity: 1;
+  border-color: rgba(224, 199, 122, 0.72);
+  background: linear-gradient(180deg, rgba(247, 233, 203, 0.98), rgba(221, 198, 156, 0.96));
+}
+
+[data-theme="dark"]
+  .bill-verification-summary-cell--note
+  .bill-verification-summary-cell__toggle[aria-expanded="true"] {
+  border-color: rgba(224, 199, 122, 0.54);
+  background: linear-gradient(180deg, rgba(106, 69, 43, 0.96), rgba(78, 48, 29, 0.96));
+  color: #f7ead1;
+}
+
 [data-theme="dark"] .bill-verification-panel--new-button:focus-visible {
   box-shadow: 0 0 0 4px rgba(224, 199, 122, 0.22),
     0 22px 42px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .bill-verification-summary-cell__toggle:focus-visible {
+  box-shadow: 0 0 0 4px rgba(224, 199, 122, 0.18);
+}
+
+[data-theme="dark"]
+  .bill-verification-summary-cell--note
+  .bill-verification-summary-cell__toggle:focus-visible {
+  box-shadow: 0 0 0 4px rgba(224, 199, 122, 0.18),
+    0 12px 24px rgba(0, 0, 0, 0.32);
 }
 
 @media (max-width: 960px) {
@@ -347,6 +552,28 @@
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
+  }
+
+  .bill-verification-summary-header {
+    display: none;
+  }
+
+  .bill-verification-record {
+    gap: 12px;
+  }
+
+  .bill-verification-summary-row {
+    grid-template-columns: 1fr;
+    gap: 1px;
+    border-radius: 0 0 18px 18px;
+  }
+
+  .bill-verification-summary-cell__label {
+    display: block;
+  }
+
+  .bill-verification-summary-cell__toggle {
+    align-self: flex-start;
   }
 
   .bill-verification-card {
@@ -358,11 +585,6 @@
   .bill-verification-card__info-box,
   .bill-verification-card__edit-box {
     width: 100%;
-  }
-
-  .bill-verification-card__avatar {
-    width: 110px;
-    height: 110px;
   }
 }
 
@@ -378,6 +600,7 @@
 
   .bill-verification-panel--heading,
   .bill-verification-panel--new,
+  .bill-verification-record,
   .bill-verification-card {
     border-radius: 24px;
   }
@@ -401,6 +624,10 @@
     gap: 16px;
   }
 
+  .bill-verification-summary-cell__value {
+    font-size: 18px;
+  }
+
   .bill-verification-card__status-box,
   .bill-verification-card__info-box {
     min-height: 0;
@@ -418,9 +645,9 @@
   }
 
   .bill-verification-card__edit-icon {
-    width: 86px;
-    height: 86px;
-    font-size: 54px;
+    width: var(--bill-verification-edit-control-height);
+    height: var(--bill-verification-edit-control-height);
+    font-size: 28px;
   }
 
   .bill-verification-card__edit-button {

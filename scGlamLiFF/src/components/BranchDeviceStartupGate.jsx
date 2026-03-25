@@ -89,24 +89,17 @@ function BranchDevicePanel({
   debug,
   status,
   reasonCode,
+  panelClassName = "",
   children
 }) {
   return (
     <AppLayout breadcrumbs={[{ label: "Home" }]}>
       <div className="page">
         <div
-          style={{
-            maxWidth: 560,
-            margin: "0 auto",
-            padding: 24,
-            borderRadius: 24,
-            border: "1px solid rgba(122, 81, 54, 0.18)",
-            background: "#fffaf3",
-            boxShadow: "0 18px 36px rgba(48, 33, 23, 0.08)"
-          }}
+          className={`branch-device-panel ${panelClassName}`.trim()}
         >
-          <h1 style={{ marginTop: 0 }}>{title}</h1>
-          <p>{message}</p>
+          <h1 className="branch-device-panel__title">{title}</h1>
+          <p className="branch-device-panel__message">{message}</p>
           {children}
           <BranchDeviceGuardDebugPanel
             debug={debug}
@@ -544,6 +537,7 @@ export default function BranchDeviceStartupGate({ children }) {
       <BranchDevicePanel
         title="กำลังตรวจสอบ session พนักงาน"
         message="อุปกรณ์นี้ลงทะเบียนแล้ว กำลังยืนยัน session พนักงานก่อนเข้าใช้งาน"
+        panelClassName="branch-device-panel--staff-session-checking"
         debug={debug}
         status={status}
         reasonCode={reasonCode}
