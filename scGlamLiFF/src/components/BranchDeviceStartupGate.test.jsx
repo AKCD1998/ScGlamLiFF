@@ -127,6 +127,56 @@ describe("BranchDeviceStartupGate", () => {
     expect(getMyStaffSessionMock).toHaveBeenCalledTimes(1);
   });
 
+  it("unlocks immediately when auth/me emits a 200 response event before the promise settles", async () => {
+    getMyBranchDeviceRegistrationMock.mockResolvedValue({
+      ok: true,
+      registered: true,
+      active: true,
+      branch_id: "branch-003",
+      registration: {
+        id: "registration-uuid",
+        branch_id: "branch-003",
+        status: "active"
+      }
+    });
+    getMyStaffSessionMock.mockImplementation(async ({ onEvent } = {}) => {
+      onEvent?.({
+        type: "staff_auth_request_start",
+        operation: "staff_session",
+        method: "GET",
+        url: "/api/auth/me"
+      });
+      onEvent?.({
+        type: "staff_auth_response",
+        operation: "staff_session",
+        method: "GET",
+        status: 200,
+        body: {
+          success: true,
+          hasUser: true,
+          user: {
+            username: "staff003",
+            display_name: "SC 003 สาขาวัดช่องลม"
+          }
+        }
+      });
+
+      await Promise.resolve();
+
+      return {
+        success: true,
+        user: {
+          username: "staff003",
+          display_name: "SC 003 สาขาวัดช่องลม"
+        }
+      };
+    });
+
+    renderGuard();
+
+    expect(await screen.findByTestId("guard-ready")).toBeTruthy();
+  });
+
   it("requires staff re-login before entering the app when an active device has no staff cookie", async () => {
     getMyBranchDeviceRegistrationMock.mockResolvedValue({
       ok: true,

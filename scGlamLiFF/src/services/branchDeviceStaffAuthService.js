@@ -140,7 +140,9 @@ const requestStaffAuthJson = async (
       success: payload.success,
       reason: payload.reason || null,
       hasUser: Boolean(payload.user),
-      error: payload.error || null
+      error: payload.error || null,
+      user:
+        payload.user && typeof payload.user === "object" ? payload.user : null
     },
     ...getBranchDeviceGuardRuntimeConfig()
   });

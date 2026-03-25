@@ -939,3 +939,25 @@
 ### Operational meaning
 - The frontend now tells the browser to bypass cached auth responses and always
   fetch a fresh session check from the backend-hosted LIFF origin.
+
+## Update 2026-03-25T08:05:00+07:00
+
+### Scope
+- Fix a startup-gate race where the staff-session check could log `/api/auth/me`
+  success but still remain on the checking screen.
+
+### What changed
+- `src/context/BranchDeviceContext.jsx` now hard-transitions the branch-device
+  guard to `staffSessionStatus: "authenticated"` as soon as the
+  `staff_auth_response` event reports `200`.
+- `src/services/branchDeviceStaffAuthService.js` now includes the normalized
+  staff user payload in the success event body so the immediate transition can
+  preserve `staffUser`.
+- Added a regression test in `src/components/BranchDeviceStartupGate.test.jsx`
+  that reproduces the real timing: `auth/me` emits a `200` response event before
+  the awaited promise settles.
+
+### Operational meaning
+- The LIFF startup gate no longer depends on the later post-`await` state update
+  to leave the checking screen. A verified `auth/me` success event is enough to
+  unlock the app immediately.

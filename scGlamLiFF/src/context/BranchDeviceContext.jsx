@@ -659,10 +659,22 @@ export function BranchDeviceProvider({ children }) {
       }
 
       if (isStaffSessionSuccess) {
+        nextState.staffSessionStatus = "authenticated";
+        nextState.staffLoginError = "";
+        nextState.staffUser =
+          event?.body?.user && typeof event.body.user === "object"
+            ? event.body.user
+            : nextState.staffUser || null;
         logBranchDeviceGuardDebug("auth_me_200", {
           status: event?.status ?? 200,
           reasonCode: trimText(event?.body?.reason) || null,
           hasUser: Boolean(event?.body?.hasUser)
+        });
+        logBranchDeviceGuardDebug("staff_session_transition", {
+          source: "staff_auth_response_success",
+          status: event?.status ?? 200,
+          reasonCode: trimText(event?.body?.reason) || null,
+          staffSessionStatus: "authenticated"
         });
       }
 
