@@ -267,11 +267,7 @@ export const buildCanonicalAppointmentCreatePayload = ({
   const treatmentItemText = trimText(bookingSelection?.treatmentItemText);
   const packageId = trimText(bookingSelection?.packageId);
   const receiptEvidence = buildCanonicalReceiptEvidence(receiptOcrResult, {
-    verificationMetadata: {
-      flow: "receipt_booking",
-      booking_option_value: trimText(bookingSelection?.optionValue),
-      booking_option_source: trimText(bookingSelection?.source)
-    }
+    verificationMetadata: buildReceiptVerificationMetadata(bookingSelection)
   });
 
   if (normalizedBranch.writeBranchId) {

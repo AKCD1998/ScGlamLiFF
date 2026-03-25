@@ -961,3 +961,24 @@
 - The LIFF startup gate no longer depends on the later post-`await` state update
   to leave the checking screen. A verified `auth/me` success event is enough to
   unlock the app immediately.
+
+## Update 2026-03-25T10:20:00+07:00
+
+### Scope
+- Keep the LIFF promo draft flow intact while fixing the direct booking create
+  payload after receipt upload succeeds.
+
+### What changed
+- `src/services/appointmentContract.js` now reuses the shared
+  `buildReceiptVerificationMetadata(...)` helper for direct appointment create,
+  not just for draft create/patch payloads.
+- This means promo selections now carry the same
+  `receipt_evidence.verification_metadata.booking_channel` field on direct save
+  that the backend already expects for LIFF receipt promo validation.
+- Added a regression test in `src/services/appointmentContract.test.js` for the
+  promo direct-create payload.
+
+### Operational meaning
+- After a successful receipt upload, the LIFF user can create the promo booking
+  directly without falling into the promo-channel validation error caused by a
+  frontend payload mismatch.

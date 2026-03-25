@@ -136,6 +136,34 @@ describe("buildCanonicalAppointmentCreatePayload", () => {
       }
     });
   });
+
+  it("includes LIFF promo booking_channel when the selected option comes from the promo campaign", () => {
+    const { payload } = buildCanonicalAppointmentCreatePayload({
+      formValues: createBaseFormValues(),
+      bookingSelection: createBaseBookingSelection({
+        optionValue: "promo:treatment-uuid",
+        source: "promo",
+        packageId: "",
+        treatmentItemText: "โปรโมชั่นพิเศษซื้อสินค้าครบ 900 บาท"
+      }),
+      receiptOcrResult: {
+        source: "api",
+        receiptImageRef: "/api/internal/receipt-uploads/example.jpg",
+        receiptNumber: "RCP-20260325-0001"
+      }
+    });
+
+    expect(payload.receipt_evidence).toMatchObject({
+      receipt_image_ref: "/api/internal/receipt-uploads/example.jpg",
+      receipt_number: "RCP-20260325-0001",
+      verification_metadata: {
+        flow: "receipt_booking",
+        booking_option_value: "promo:treatment-uuid",
+        booking_option_source: "promo",
+        booking_channel: "liff_receipt_promo_q2_2026"
+      }
+    });
+  });
 });
 
 describe("draft payload builders", () => {
