@@ -90,6 +90,11 @@ const bookingOptions = [
   }
 ];
 
+const createBookingOptionsPayload = (options = bookingOptions, meta = null) => ({
+  options,
+  meta
+});
+
 const labelMatchers = {
   name: /ชื่อ-นามสกุล/,
   phone: /เบอร์โทร/,
@@ -179,7 +184,7 @@ describe("NewBillRecipientModal draft flow", () => {
     submitAppointmentDraftMock.mockReset();
     processReceiptImageMock.mockReset();
 
-    getBookingOptionsMock.mockResolvedValue(bookingOptions);
+    getBookingOptionsMock.mockResolvedValue(createBookingOptionsPayload());
     getCalendarDaysMock.mockResolvedValue([]);
     getAppointmentsQueueMock.mockResolvedValue([]);
   });
@@ -346,5 +351,25 @@ describe("NewBillRecipientModal draft flow", () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
     confirmSpy.mockRestore();
+  });
+
+  it("shows a clear promo notice when the temporary LIFF promo is not active yet", async () => {
+    getBookingOptionsMock.mockResolvedValueOnce(
+      createBookingOptionsPayload([], {
+        booking_channel: "liff_receipt_promo_q2_2026",
+        active: false,
+        active_from: "2026-04-01T00:00:00+07:00",
+        active_until: "2026-06-30T23:59:59.999+07:00"
+      })
+    );
+
+    renderModal();
+
+    const bookingSelect = await screen.findByLabelText(labelMatchers.bookingOption);
+
+    await waitFor(() => expect(bookingSelect.disabled).toBe(true));
+    expect(
+      screen.getByText(/โปรโมชั่นพิเศษนี้ยังไม่เปิดใช้งาน จะเริ่มวันที่/i)
+    ).toBeTruthy();
   });
 });

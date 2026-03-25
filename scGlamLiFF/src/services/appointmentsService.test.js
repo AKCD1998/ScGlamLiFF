@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAppointmentsQueue, getCalendarDays } from "./appointmentsService";
+import { getAppointmentsQueue, getBookingOptions, getCalendarDays } from "./appointmentsService";
 
 const createJsonResponse = (payload) => ({
   ok: true,
@@ -85,5 +85,35 @@ describe("appointmentsService branch_id query handling", () => {
 
     expect(requestUrl.pathname).toBe("/api/appointments/queue");
     expect(requestUrl.searchParams.has("branch_id")).toBe(false);
+  });
+
+  it("returns booking option payload with meta while keeping credentials included", async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        options: [{ value: "promo:abc", label: "Special promo" }],
+        meta: {
+          booking_channel: "liff_receipt_promo_q2_2026",
+          active: false
+        }
+      })
+    );
+
+    const payload = await getBookingOptions({
+      channel: "liff_receipt_promo_q2_2026"
+    });
+
+    const [url, options] = fetchMock.mock.calls[0];
+    const requestUrl = parseRequestUrl(url);
+
+    expect(requestUrl.pathname).toBe("/api/appointments/booking-options");
+    expect(requestUrl.searchParams.get("channel")).toBe("liff_receipt_promo_q2_2026");
+    expect(options.credentials).toBe("include");
+    expect(payload).toEqual({
+      options: [{ value: "promo:abc", label: "Special promo" }],
+      meta: {
+        booking_channel: "liff_receipt_promo_q2_2026",
+        active: false
+      }
+    });
   });
 });

@@ -103,6 +103,7 @@ const requestStaffAuthJson = async (
   try {
     response = await fetch(url, {
       method,
+      cache: "no-store",
       credentials: "include",
       headers:
         body === undefined

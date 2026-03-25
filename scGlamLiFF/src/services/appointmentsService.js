@@ -90,7 +90,10 @@ export const getBookingOptions = async ({
     }
   );
 
-  return Array.isArray(payload?.options) ? payload.options : [];
+  return {
+    options: Array.isArray(payload?.options) ? payload.options : [],
+    meta: payload?.meta && typeof payload.meta === "object" ? payload.meta : null
+  };
 };
 
 export const getCalendarDays = async ({ from, to, branchValue } = {}) => {

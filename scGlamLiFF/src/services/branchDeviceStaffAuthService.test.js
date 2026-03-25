@@ -50,6 +50,7 @@ describe("branchDeviceStaffAuthService", () => {
     expect(url).toBe("/api/auth/me");
     expect(requestUrl.pathname).toBe("/api/auth/me");
     expect(options.method).toBe("GET");
+    expect(options.cache).toBe("no-store");
     expect(options.credentials).toBe("include");
     expect(payload.success).toBe(true);
     expect(payload.user).toEqual({
@@ -83,6 +84,7 @@ describe("branchDeviceStaffAuthService", () => {
     expect(url).toBe("/api/auth/login");
     expect(requestUrl.pathname).toBe("/api/auth/login");
     expect(options.method).toBe("POST");
+    expect(options.cache).toBe("no-store");
     expect(options.credentials).toBe("include");
     expect(options.headers).toEqual({
       "Content-Type": "application/json"

@@ -904,3 +904,38 @@
 ### Operational meaning
 - The old `App failed to start. Please refresh or check network.` screen could appear even when the browser was still parsing/loading the main bundle in LINE LIFF WebView.
 - The new bootstrap reduces that false-negative and should show a more specific boot message if the app graph fails before render.
+
+## Update 2026-03-24T16:55:00+07:00
+
+### Scope
+- Make the promo booking dropdown explain why it is unavailable when the LIFF
+  promo channel returns no active options yet.
+
+### What changed
+- `src/services/appointmentsService.js` now preserves booking-options `meta`
+  alongside `options`.
+- `src/components/NewBillRecipientModal.jsx` now shows a clear Thai notice when
+  the promo channel is inactive instead of leaving the dropdown disabled without
+  explanation.
+- Added test coverage for the inactive promo notice and the booking-options
+  response shape.
+
+### Operational meaning
+- Before the campaign start date, operators can immediately see that the promo
+  has not opened yet rather than interpreting the disabled dropdown as a UI bug.
+
+## Update 2026-03-24T17:05:00+07:00
+
+### Scope
+- Prevent the LIFF startup gate from getting stuck in the checking state when
+  the browser revalidates `/api/auth/me`.
+
+### What changed
+- `src/services/branchDeviceStaffAuthService.js` now sends auth requests with
+  `cache: "no-store"` in addition to `credentials: "include"`.
+- Extended the existing auth service tests to lock the no-store fetch option for
+  both `GET /api/auth/me` and `POST /api/auth/login`.
+
+### Operational meaning
+- The frontend now tells the browser to bypass cached auth responses and always
+  fetch a fresh session check from the backend-hosted LIFF origin.

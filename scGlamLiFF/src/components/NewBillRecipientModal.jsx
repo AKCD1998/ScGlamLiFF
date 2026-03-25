@@ -400,6 +400,56 @@ const getBookingOptionsErrorMessage = (error) => {
   return "โหลดรายการบริการไม่สำเร็จ กรุณาลองใหม่";
 };
 
+const promoDateNoticeFormatter = new Intl.DateTimeFormat("th-TH", {
+  timeZone: SHOP_TIME_ZONE,
+  day: "numeric",
+  month: "short",
+  year: "numeric"
+});
+
+const formatPromoDateNotice = (value) => {
+  const normalizedValue = trimText(value);
+
+  if (!normalizedValue) {
+    return "";
+  }
+
+  const parsedDate = new Date(normalizedValue);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "";
+  }
+
+  return promoDateNoticeFormatter.format(parsedDate);
+};
+
+const getBookingOptionsNoticeMessage = ({ options = [], meta } = {}) => {
+  if (options.length > 0) {
+    return "";
+  }
+
+  const bookingChannel = trimText(meta?.booking_channel);
+  const activeFrom = formatPromoDateNotice(meta?.active_from);
+  const activeUntil = formatPromoDateNotice(meta?.active_until);
+
+  if (
+    bookingChannel === LIFF_RECEIPT_PROMO_BOOKING_CHANNEL &&
+    meta?.active === false
+  ) {
+    if (activeFrom && activeUntil) {
+      return `โปรโมชั่นพิเศษนี้ยังไม่เปิดใช้งาน จะเริ่มวันที่ ${activeFrom} และสิ้นสุดวันที่ ${activeUntil}`;
+    }
+
+    if (activeFrom) {
+      return `โปรโมชั่นพิเศษนี้ยังไม่เปิดใช้งาน จะเริ่มวันที่ ${activeFrom}`;
+    }
+
+    return "โปรโมชั่นพิเศษนี้ยังไม่เปิดใช้งานในขณะนี้";
+  }
+
+  return "ยังไม่พบรายการโปรโมชั่นหรือบริการที่เปิดให้เลือกในตอนนี้";
+};
+
 const getCalendarDaysErrorMessage = (error) => {
   if (error instanceof AppointmentsApiError && error.status === 401) {
     return "ยังไม่ได้เข้าสู่ระบบพนักงาน จึงโหลดข้อมูลปฏิทินไม่ได้";
@@ -633,6 +683,7 @@ function NewBillRecipientModal({
   const [bookingOptions, setBookingOptions] = useState([]);
   const [bookingOptionsStatus, setBookingOptionsStatus] = useState("idle");
   const [bookingOptionsError, setBookingOptionsError] = useState("");
+  const [bookingOptionsNotice, setBookingOptionsNotice] = useState("");
   const [calendarDays, setCalendarDays] = useState([]);
   const [calendarDaysStatus, setCalendarDaysStatus] = useState("idle");
   const [calendarDaysError, setCalendarDaysError] = useState("");
@@ -675,6 +726,7 @@ function NewBillRecipientModal({
     setBookingOptions([]);
     setBookingOptionsStatus("idle");
     setBookingOptionsError("");
+    setBookingOptionsNotice("");
     setCalendarDays([]);
     setCalendarDaysStatus("idle");
     setCalendarDaysError("");
@@ -761,10 +813,11 @@ function NewBillRecipientModal({
     let isActive = true;
     setBookingOptionsStatus("loading");
     setBookingOptionsError("");
+    setBookingOptionsNotice("");
 
     const loadBookingOptions = async () => {
       try {
-        const options = await getBookingOptions({
+        const { options, meta } = await getBookingOptions({
           channel: LIFF_RECEIPT_PROMO_BOOKING_CHANNEL
         });
 
@@ -774,6 +827,12 @@ function NewBillRecipientModal({
 
         setBookingOptions(options);
         setBookingOptionsStatus("ready");
+        setBookingOptionsNotice(
+          getBookingOptionsNoticeMessage({
+            options,
+            meta
+          })
+        );
       } catch (error) {
         if (!isActive) {
           return;
@@ -782,6 +841,7 @@ function NewBillRecipientModal({
         setBookingOptions([]);
         setBookingOptionsStatus("error");
         setBookingOptionsError(getBookingOptionsErrorMessage(error));
+        setBookingOptionsNotice("");
         setBookingSelection(createEmptyBookingSelection());
         setFormValues((current) => ({
           ...current,
@@ -1890,7 +1950,9 @@ function NewBillRecipientModal({
                   <option value="">
                     {bookingOptionsStatus === "loading"
                       ? "กำลังโหลดรายการบริการ..."
-                      : "เลือกโปรโมชั่นหรือบริการ"}
+                      : bookingOptions.length
+                        ? "เลือกโปรโมชั่นหรือบริการ"
+                        : "ยังไม่มีรายการให้เลือกตอนนี้"}
                   </option>
                   {bookingOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -1901,6 +1963,11 @@ function NewBillRecipientModal({
                 {bookingOptionsError ? (
                   <p className="new-bill-recipient-modal__feedback new-bill-recipient-modal__feedback--error">
                     {bookingOptionsError}
+                  </p>
+                ) : null}
+                {!bookingOptionsError && bookingOptionsNotice ? (
+                  <p className="new-bill-recipient-modal__feedback new-bill-recipient-modal__feedback--error">
+                    {bookingOptionsNotice}
                   </p>
                 ) : null}
                 {selectionSubnote ? (
