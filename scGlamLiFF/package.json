@@ -4,6 +4,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "sync:backend-liff": "node scripts/sync-backend-liff.mjs",
+    "build:backend-liff": "npm run build && npm run sync:backend-liff",
     "preview": "vite preview",
     "test": "vitest run"
   },

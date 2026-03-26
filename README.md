@@ -48,14 +48,25 @@ If your repo name is different, update:
 Do not remove GitHub Pages during cutover. Keep it as the rollback target until the backend-hosted LIFF has been verified in LINE.
 
 Recommended order:
-1. Build this repo for backend-origin hosting with the default production settings:
+1. Build and sync this repo for backend-origin hosting:
+   - run `cd scGlamLiFF`
+   - run `npm run build:backend-liff`
    - `VITE_PUBLIC_BASE_PATH=/liff/`
    - `VITE_API_BASE_URL=` (blank for same-origin `/api`)
    - `VITE_OCR_API_BASE_URL=` unless you intentionally need a different OCR origin
-2. Copy the resulting `scGlamLiFF/dist/` output into `scGlamLiff-reception/backend/public/liff/`.
+2. The sync script clears `scGlamLiff-reception/backend/public/liff/` and copies the latest `scGlamLiFF/dist/` output into it.
 3. Deploy the backend repo and verify `https://<backend-host>/liff/`.
 4. Only after that verification, update the LIFF endpoint in LINE Developers Console from GitHub Pages to `https://<backend-host>/liff/`.
 5. Keep the GitHub Pages workflow and URL available until real-device verification is complete.
+
+### Reusable backend LIFF sync
+- `npm run sync:backend-liff`
+  - copies the existing `scGlamLiFF/dist/` bundle into `scGlamLiff-reception/backend/public/liff/`
+  - removes stale hashed assets from the backend LIFF directory first
+- `npm run build:backend-liff`
+  - rebuilds the frontend production bundle
+  - syncs it into `scGlamLiff-reception/backend/public/liff/`
+- Optional override: set `SCGLAM_BACKEND_LIFF_DIR` if the backend repo lives in a different path. The script still requires the resolved path to end with `backend/public/liff`.
 
 What can be removed later:
 - GitHub Pages deployment workflow, only after the backend-hosted LIFF is stable
